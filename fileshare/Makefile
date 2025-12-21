@@ -43,7 +43,6 @@ define Build/Compile
 	npm install --production --no-save --prefix $(PKG_BUILD_DIR)
 endef
 
-
 define Package/fileshare/install
 	$(INSTALL_DIR) $(1)/usr/lib/fileshare
 	$(INSTALL_DIR) $(1)/etc/init.d

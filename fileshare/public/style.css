@@ -84,7 +84,6 @@ header p {
     transform: translateY(-2px);
 }
 
-
 .text-share-section {
     background: white;
     border-radius: 15px;
@@ -292,10 +291,6 @@ header p {
     background: #000;
 }
 
-.file-thumbnail video::-webkit-media-controls {
-    display: none !important;
-}
-
 .video-play-icon {
     position: absolute;
     top: 50%;
@@ -377,7 +372,6 @@ header p {
     margin-right: 10px;
 }
 
-/* 模态框样式 */
 .modal {
     display: none;
     position: fixed;
@@ -442,7 +436,6 @@ header p {
     font-size: 1rem;
 }
 
-/* 消息提示 */
 .toast {
     position: fixed;
     top: 20px;
@@ -468,7 +461,6 @@ header p {
     background: #dc3545;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
     .container {
         padding: 10px;
@@ -502,3 +494,4 @@ header p {
         gap: 10px;
     }
 }
+

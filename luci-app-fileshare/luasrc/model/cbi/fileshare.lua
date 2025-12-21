@@ -3,7 +3,6 @@ require("luci.util")
 
 m = Map("fileshare", translate("内网共享配置"), translate("配置内网共享服务的参数"))
 
--- 使用 NamedSection 指定具体的 section name，这样即使配置不存在也会显示
 s = m:section(NamedSection, "config", "fileshare", translate("基本设置"))
 s.addremove = false
 

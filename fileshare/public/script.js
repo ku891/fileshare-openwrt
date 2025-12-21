@@ -148,21 +148,10 @@ async function loadFilesWithPassword() {
             displayFiles(result);
         } else if (response.status === 401) {
             if (result.locked) {
-                // 账户被锁定
-                alert(`账户已被锁定\n原因：密码错误次数过多\n剩余时间：${result.remainingHours}小时\n\n请稍后再试`);
-                document.body.innerHTML = `
-                    <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                        <div style="background: white; padding: 40px; border-radius: 15px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-                            <h1 style="color: #dc3545; margin-bottom: 20px;">🔒 账户已被锁定</h1>
-                            <p style="font-size: 1.2rem; margin-bottom: 10px;">密码错误次数过多</p>
-                            <p style="font-size: 1.5rem; color: #667eea; font-weight: bold;">剩余时间：${result.remainingHours} 小时</p>
-                            <p style="margin-top: 20px; color: #666;">请稍后再试</p>
-                        </div>
-                    </div>
-                `;
+                showLockedScreen(result.remainingHours);
             } else {
                 showToast(result.message || '密码错误', 'error');
-                showPasswordPrompt();
+                document.getElementById('passwordScreen').style.display = 'block';
             }
         } else {
             showToast('加载文件列表失败', 'error');
@@ -254,7 +243,7 @@ async function uploadFiles(files) {
             }
         } else if (response.status === 401) {
             showToast('需要密码才能上传', 'error');
-            showPasswordPrompt();
+            document.getElementById('passwordScreen').style.display = 'block';
         } else {
             showToast('上传失败：' + result.error, 'error');
         }
@@ -310,10 +299,6 @@ function displayFiles(files) {
                                     preload="metadata" 
                                     onloadedmetadata="this.currentTime=0.1"
                                     onerror="this.onerror=null; this.parentElement.innerHTML='${fileIcon}'">
-                                    <source src="/uploads/${file.name}" type="video/mp4">
-                                    <source src="/uploads/${file.name}" type="video/quicktime">
-                                    <source src="/uploads/${file.name}" type="video/x-msvideo">
-                                    <source src="/uploads/${file.name}">
                                 </video>
                                 <div class="video-play-icon">
                                     <i class="fas fa-play-circle"></i>
@@ -364,65 +349,18 @@ function getFileIcon(filename, isImage, isVideo) {
     
     const ext = filename.split('.').pop().toLowerCase();
     const iconMap = {
-        // 文档
         'pdf': 'fas fa-file-pdf',
         'doc': 'fas fa-file-word',
         'docx': 'fas fa-file-word',
         'txt': 'fas fa-file-alt',
-        'rtf': 'fas fa-file-alt',
-        'odt': 'fas fa-file-alt',
-        'pages': 'fas fa-file-alt',
-        
-        // 表格
         'xls': 'fas fa-file-excel',
         'xlsx': 'fas fa-file-excel',
-        'csv': 'fas fa-file-csv',
-        'ods': 'fas fa-file-excel',
-        'numbers': 'fas fa-file-excel',
-        
-        // 演示文稿
-        'ppt': 'fas fa-file-powerpoint',
-        'pptx': 'fas fa-file-powerpoint',
-        'odp': 'fas fa-file-powerpoint',
-        'key': 'fas fa-file-powerpoint',
-        
-        // 压缩文件
         'zip': 'fas fa-file-archive',
         'rar': 'fas fa-file-archive',
-        '7z': 'fas fa-file-archive',
-        'tar': 'fas fa-file-archive',
-        'gz': 'fas fa-file-archive',
-        'bz2': 'fas fa-file-archive',
-        
-        // 音频
         'mp3': 'fas fa-file-audio',
-        'wav': 'fas fa-file-audio',
-        'flac': 'fas fa-file-audio',
-        'aac': 'fas fa-file-audio',
-        'ogg': 'fas fa-file-audio',
-        'm4a': 'fas fa-file-audio',
-        'wma': 'fas fa-file-audio',
-        
-        // 代码文件
         'js': 'fas fa-file-code',
         'html': 'fas fa-file-code',
-        'css': 'fas fa-file-code',
-        'json': 'fas fa-file-code',
-        'xml': 'fas fa-file-code',
-        'py': 'fas fa-file-code',
-        'java': 'fas fa-file-code',
-        'cpp': 'fas fa-file-code',
-        'c': 'fas fa-file-code',
-        'php': 'fas fa-file-code',
-        'rb': 'fas fa-file-code',
-        'go': 'fas fa-file-code',
-        'ts': 'fas fa-file-code',
-        
-        // 其他
-        'exe': 'fas fa-cog',
-        'dmg': 'fas fa-hdd',
-        'iso': 'fas fa-hdd',
-        'bin': 'fas fa-hdd'
+        'css': 'fas fa-file-code'
     };
     
     const iconClass = iconMap[ext] || 'fas fa-file';
@@ -447,7 +385,6 @@ function handleFileClick(filename, isImage, isVideo) {
     } else if (isVideo) {
         previewVideo(filename);
     }
-    // 移除自动下载功能，让用户使用下载按钮
 }
 
 // 预览图片
@@ -458,7 +395,6 @@ function previewImage(filename) {
     const modalTitle = document.getElementById('modalTitle');
     const modalSize = document.getElementById('modalSize');
     
-    // 移除之前的视频元素
     const existingVideo = modal.querySelector('video');
     if (existingVideo) {
         existingVideo.remove();
@@ -478,7 +414,6 @@ function previewImage(filename) {
 function closeImageModal() {
     const modal = document.getElementById('imageModal');
     
-    // 停止视频播放
     const video = modal.querySelector('video');
     if (video) {
         video.pause();
@@ -500,7 +435,6 @@ function previewVideo(filename) {
     
     const file = currentFiles.find(f => f.name === filename);
     if (file) {
-        // 创建视频元素
         const video = document.createElement('video');
         video.src = `/uploads/${filename}`;
         video.controls = true;
@@ -509,11 +443,9 @@ function previewVideo(filename) {
         video.style.maxHeight = '500px';
         video.style.borderRadius = '10px';
         
-        // 替换图片元素
         modalImage.src = '';
         modalImage.style.display = 'none';
         
-        // 将视频添加到模态框
         const modalContent = modal.querySelector('.modal-content');
         const existingVideo = modalContent.querySelector('video');
         if (existingVideo) {
@@ -572,13 +504,12 @@ async function deleteFile(filename) {
             } else {
                 loadFiles();
             }
-            // 如果是在预览模态框中删除，关闭模态框
             if (currentImageFile === filename) {
                 closeImageModal();
             }
         } else if (response.status === 401) {
             showToast('需要密码才能删除', 'error');
-            showPasswordPrompt();
+            document.getElementById('passwordScreen').style.display = 'block';
         } else {
             showToast('删除失败：' + result.error, 'error');
         }
@@ -611,25 +542,21 @@ function setupTextShare() {
     const textArea = document.getElementById('sharedTextArea');
     const textLength = document.getElementById('textLength');
     
-    // 监听文本变化
     textArea.addEventListener('input', function() {
         const length = this.value.length;
         textLength.textContent = length;
         
-        // 清除之前的定时器
         if (autoSaveTimer) {
             clearTimeout(autoSaveTimer);
         }
         
-        // 设置自动保存定时器（2秒后自动保存）
         autoSaveTimer = setTimeout(() => {
             if (!isAutoSaving) {
-                saveSharedText(true); // true 表示自动保存
+                saveSharedText(true);
             }
         }, 2000);
     });
     
-    // 定期同步文本内容（每30秒检查一次）
     setInterval(syncSharedText, 30000);
 }
 
@@ -734,7 +661,7 @@ async function clearSharedText() {
             showToast('文本已清空', 'success');
         } else if (response.status === 401) {
             showToast('需要密码才能清空', 'error');
-            showPasswordPrompt();
+            document.getElementById('passwordScreen').style.display = 'block';
         } else {
             throw new Error('清空失败');
         }
@@ -743,7 +670,7 @@ async function clearSharedText() {
     }
 }
 
-// 同步共享文本（检查是否有更新）
+// 同步共享文本
 async function syncSharedText() {
     if (isAutoSaving) return;
     
@@ -760,7 +687,6 @@ async function syncSharedText() {
             const textArea = document.getElementById('sharedTextArea');
             const currentText = textArea.value;
             
-            // 如果服务器上的文本与当前文本不同，且当前文本没有被修改
             if (result.text !== currentText && !textArea.matches(':focus')) {
                 textArea.value = result.text;
                 updateTextLength();
@@ -788,16 +714,13 @@ function copyAllText() {
         return;
     }
     
-    // 使用现代 Clipboard API
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
             showToast('文本已复制到剪贴板', 'success');
         }).catch(() => {
-            // 降级方案：使用传统方法
             fallbackCopyText(text);
         });
     } else {
-        // 降级方案：使用传统方法
         fallbackCopyText(text);
     }
 }
@@ -831,9 +754,9 @@ document.addEventListener('keydown', function(event) {
         closeImageModal();
     }
     
-    // Ctrl+S 保存文本
     if (event.ctrlKey && event.key === 's') {
         event.preventDefault();
         saveSharedText();
     }
 });
+
