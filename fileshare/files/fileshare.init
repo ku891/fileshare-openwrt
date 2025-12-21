@@ -61,11 +61,14 @@ start_service() {
     procd_open_instance
     procd_set_param command /usr/bin/node "$SERVICE_DIR/server.js"
     
-    # 设置环境变量（procd 环境变量格式：KEY="value"）
+    # 设置环境变量（procd 环境变量格式：每个变量单独设置）
     procd_set_param env PORT="$port"
     procd_set_param env ACCESS_PASSWORD="$password"
     [ -n "$allowed_hosts" ] && procd_set_param env ALLOWED_HOSTS="$allowed_hosts"
     procd_set_param env NODE_ENV="production"
+    
+    # 验证环境变量值（调试用）
+    logger -t fileshare "验证: port变量值='$port'"
     
     # 记录设置的环境变量（用于调试）
     logger -t fileshare "设置环境变量: PORT=$port, ACCESS_PASSWORD=***, ALLOWED_HOSTS=$allowed_hosts"
@@ -88,7 +91,13 @@ start_service() {
 }
 
 reload_service() {
+    # 完全停止服务
     stop
+    
+    # 等待进程完全停止（确保环境变量能正确更新）
+    sleep 1
+    
+    # 重新启动服务（会重新读取配置并设置环境变量）
     start
 }
 
