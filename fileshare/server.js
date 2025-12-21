@@ -7,6 +7,14 @@ const fs = require('fs-extra');
 const app = express();
 
 // 从环境变量读取配置（由 OpenWrt init 脚本设置）
+// 调试：打印所有相关环境变量
+console.log('=== 环境变量调试信息 ===');
+console.log('process.env.PORT:', process.env.PORT);
+console.log('process.env.ACCESS_PASSWORD:', process.env.ACCESS_PASSWORD ? '已设置' : '未设置');
+console.log('process.env.ALLOWED_HOSTS:', process.env.ALLOWED_HOSTS || '未设置');
+console.log('process.env.NODE_ENV:', process.env.NODE_ENV || '未设置');
+console.log('========================');
+
 const PORT_ENV = process.env.PORT;
 const PORT = PORT_ENV ? parseInt(PORT_ENV, 10) : 3000;
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '123456';
