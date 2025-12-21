@@ -46,7 +46,7 @@ start_service() {
     fi
     
     config_get port config port 3000
-    config_get password config password "Ku444Ku444@"
+    config_get password config password "123456"
     config_get allowed_hosts config allowed_hosts ""
     
     procd_open_instance

@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 访问控制配置
-const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'Ku444Ku444@'; // 默认密码
+const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '123456'; // 默认密码
 // 允许免密码访问的主机，支持从环境变量读取（逗号分隔）
 const ALLOWED_HOSTS_ENV = process.env.ALLOWED_HOSTS || '';
 const ALLOWED_HOSTS = ALLOWED_HOSTS_ENV 
@@ -53,11 +53,25 @@ async function saveSharedTextToFile(text) {
 // 启动时加载文本
 loadSharedText();
 
+// 创建 public 目录路径
+const publicDir = path.join(__dirname, 'public');
+
 // 中间件
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+// 静态文件服务（不需要密码验证）
+app.use(express.static(publicDir));
 app.use('/uploads', express.static(uploadDir));
+
+// 根路径路由，确保 index.html 能被正确提供
+app.get('/', (req, res) => {
+  const indexPath = path.join(publicDir, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('index.html not found');
+  }
+});
 
 // 判断是否为内网 IP
 function isPrivateIP(ip) {

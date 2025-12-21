@@ -18,7 +18,7 @@ port.rmempty = false
 
 password = s:option(Value, "password", translate("访问密码"), translate("外网访问和未授权内网访问所需的密码"))
 password.password = true
-password.default = "Ku444Ku444@"
+password.default = "123456"
 password.rmempty = false
 
 allowed_hosts = s:option(Value, "allowed_hosts", translate("允许免密码访问的主机"), translate("内网中允许免密码访问的主机IP或域名，多个用逗号分隔（例如：192.168.1.1,192.168.1.100）"))
