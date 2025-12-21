@@ -10,7 +10,7 @@ const app = express();
 const PORT = parseInt(process.env.PORT) || 3000;
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '123456';
 const ALLOWED_HOSTS_ENV = process.env.ALLOWED_HOSTS || '';
-const ALLOWED_HOSTS = ALLOWED_HOSTS_ENV
+const ALLOWED_HOSTS = ALLOWED_HOSTS_ENV 
   ? ALLOWED_HOSTS_ENV.split(',').map(h => h.trim()).filter(h => h)
   : [];
 
