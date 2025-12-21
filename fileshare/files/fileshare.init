@@ -60,17 +60,26 @@ reload_service() {
     
     local enabled
     config_get_bool enabled config enabled 1
-    [ "$enabled" = "0" ] && stop && return 0
+    
+    if [ "$enabled" = "0" ]; then
+        logger -t fileshare "配置已禁用，停止服务"
+        stop
+        return 0
+    fi
     
     logger -t fileshare "重新加载配置（server.js 将从 /etc/config/fileshare 读取最新配置）"
     
-    # 停止旧服务
-    stop
+    # 检查服务是否正在运行（通过检查 procd 实例）
+    if pgrep -f "node.*server.js" > /dev/null 2>&1; then
+        # 服务正在运行，先停止
+        logger -t fileshare "停止旧服务以应用新配置"
+        stop
+        
+        # 等待进程完全退出
+        sleep 2
+    fi
     
-    # 等待进程完全退出
-    sleep 2
-    
-    # 重新启动服务（server.js 会自动读取最新配置）
+    # 启动服务（server.js 会自动读取最新配置）
     start_service
 }
 

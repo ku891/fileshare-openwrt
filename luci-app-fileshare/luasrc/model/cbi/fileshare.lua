@@ -25,7 +25,24 @@ allowed_hosts.default = "192.168.1.1"
 allowed_hosts.placeholder = "192.168.1.1,192.168.1.100"
 
 function m.on_after_commit(self)
-    luci.sys.call("/etc/init.d/fileshare reload >/dev/null 2>&1")
+    local uci = require("luci.model.uci").cursor()
+    uci:load("fileshare")
+    local enabled = uci:get("fileshare", "config", "enabled")
+    
+    if enabled == "1" then
+        -- 启用服务：设置开机自启，然后启动或重新加载
+        luci.sys.call("/etc/init.d/fileshare enable >/dev/null 2>&1")
+        -- 尝试启动，如果已运行则重新加载配置
+        local status = luci.sys.call("/etc/init.d/fileshare start >/dev/null 2>&1")
+        if status ~= 0 then
+            -- 启动失败（可能已运行），尝试重新加载
+            luci.sys.call("/etc/init.d/fileshare reload >/dev/null 2>&1")
+        end
+    else
+        -- 禁用服务：停止并取消开机自启
+        luci.sys.call("/etc/init.d/fileshare stop >/dev/null 2>&1")
+        luci.sys.call("/etc/init.d/fileshare disable >/dev/null 2>&1")
+    end
 end
 
 return m
