@@ -53,18 +53,26 @@ loadSharedText();
 
 // 创建 public 目录路径
 const publicDir = path.join(__dirname, 'public');
+fs.ensureDirSync(publicDir);
 
 // 中间件
+app.set('trust proxy', true); // 信任代理，正确获取客户端 IP
 app.use(cors());
 app.use(express.json());
+
+// 根路径路由（必须在静态文件服务之前）
+app.get('/', (req, res) => {
+  const indexPath = path.resolve(publicDir, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('index.html not found');
+  }
+});
+
 // 静态文件服务（不需要密码验证）
 app.use(express.static(publicDir));
 app.use('/uploads', express.static(uploadDir));
-
-// 根路径路由
-app.get('/', (req, res) => {
-  res.sendFile(path.join(publicDir, 'index.html'));
-});
 
 function isPrivateIP(ip) {
   if (!ip) return false;
@@ -81,7 +89,13 @@ function isPrivateIP(ip) {
 // 密码验证中间件
 function checkPassword(req, res, next) {
   const host = req.get('host') || '';
-  const ip = req.ip || req.connection.remoteAddress || '';
+  // 获取客户端 IP（支持代理环境）
+  const ip = req.ip || 
+             req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+             req.headers['x-real-ip'] || 
+             req.connection?.remoteAddress || 
+             req.socket?.remoteAddress || 
+             '';
   
   const isExternalAccess = !isPrivateIP(ip);
   
@@ -267,7 +281,10 @@ app.post('/api/shared-text', checkPassword, async (req, res) => {
 // 启动服务器
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`文件共享服务器运行在 http://0.0.0.0:${PORT}`);
+  console.log(`工作目录: ${__dirname}`);
   console.log(`上传目录: ${uploadDir}`);
+  console.log(`前端目录: ${publicDir}`);
+  console.log(`前端文件存在: ${fs.existsSync(path.join(publicDir, 'index.html')) ? '是' : '否'}`);
   console.log(`允许免密码访问的主机: ${ALLOWED_HOSTS.length > 0 ? ALLOWED_HOSTS.join(', ') : '无'}`);
   console.log(`密码错误限制: ${MAX_FAILED_ATTEMPTS}次后锁定${LOCKOUT_DURATION / 1000 / 60 / 60}小时`);
 });
