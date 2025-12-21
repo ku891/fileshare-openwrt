@@ -21,6 +21,8 @@ if not ip or ip == "" then
     ip = "192.168.1.1"
 end
 ip = ip:gsub("%s+", "")
+-- 移除CIDR格式的掩码（如 /24）
+ip = ip:match("^([^/]+)") or ip
 
 -- 构建URL
 local url = "http://" .. ip .. ":" .. port
