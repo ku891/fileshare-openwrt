@@ -49,10 +49,13 @@ start_service() {
     config_get password config password "123456"
     config_get allowed_hosts config allowed_hosts ""
     
+    # 记录配置信息到日志（用于调试）
+    logger -t fileshare "读取配置: port=$port, password=***, allowed_hosts=$allowed_hosts"
+    
     procd_open_instance
     procd_set_param command /usr/bin/node "$SERVICE_DIR/server.js"
     
-    # 设置环境变量
+    # 设置环境变量（这些会在服务启动时传递给 Node.js）
     procd_set_param env PORT="$port"
     procd_set_param env ACCESS_PASSWORD="$password"
     [ -n "$allowed_hosts" ] && procd_set_param env ALLOWED_HOSTS="$allowed_hosts"
@@ -76,17 +79,21 @@ start_service() {
 }
 
 reload_service() {
-    # 确保配置已重新加载
-    config_load fileshare
+    logger -t fileshare "开始重新加载服务..."
     
     # 停止服务
     stop
     
-    # 等待服务完全停止
-    sleep 1
+    # 等待服务完全停止（确保旧进程完全退出）
+    sleep 2
     
-    # 重新启动服务（会读取最新配置）
+    # 重新加载配置
+    config_load fileshare
+    
+    # 重新启动服务（会重新读取配置并设置新的环境变量）
     start
+    
+    logger -t fileshare "服务重新加载完成"
 }
 
 service_triggers() {
