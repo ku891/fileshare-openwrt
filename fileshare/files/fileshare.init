@@ -76,7 +76,16 @@ start_service() {
 }
 
 reload_service() {
+    # 确保配置已重新加载
+    config_load fileshare
+    
+    # 停止服务
     stop
+    
+    # 等待服务完全停止
+    sleep 1
+    
+    # 重新启动服务（会读取最新配置）
     start
 }
 
