@@ -50,6 +50,17 @@ define Package/fileshare/install
 	$(INSTALL_DIR) $(1)/usr/lib/fileshare/public
 	$(INSTALL_DIR) $(1)/usr/lib/fileshare/uploads
 	
+	# 转换所有脚本文件为 Unix 格式（移除 Windows CRLF）
+	@if [ -f $(PKG_BUILD_DIR)/fileshare.init ]; then \
+		sed -i 's/\r$$//' $(PKG_BUILD_DIR)/fileshare.init; \
+	fi
+	@if [ -f $(PKG_BUILD_DIR)/fileshare.config ]; then \
+		sed -i 's/\r$$//' $(PKG_BUILD_DIR)/fileshare.config; \
+	fi
+	@if [ -f $(PKG_BUILD_DIR)/server.js ]; then \
+		sed -i 's/\r$$//' $(PKG_BUILD_DIR)/server.js; \
+	fi
+	
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/fileshare.init $(1)/etc/init.d/fileshare
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/fileshare.config $(1)/etc/config/fileshare
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/server.js $(1)/usr/lib/fileshare/
