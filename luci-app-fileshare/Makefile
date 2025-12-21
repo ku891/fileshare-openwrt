@@ -34,12 +34,6 @@ define Build/Prepare
 	$(CP) $(CURDIR)/luasrc $(PKG_BUILD_DIR)/ -r
 endef
 
-define Build/Configure
-endef
-
-define Build/Compile
-endef
-
 define Package/luci-app-fileshare/install
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi
