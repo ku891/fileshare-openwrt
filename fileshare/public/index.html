@@ -78,6 +78,18 @@
         <div class="file-list-section">
             <div class="section-header">
                 <h2><i class="fas fa-folder-open"></i> 文件列表</h2>
+                <div class="batch-actions" id="batchActions" style="display: none;">
+                    <button class="btn btn-batch" onclick="selectAllFiles()">
+                        <i class="fas fa-check-square"></i> 全选
+                    </button>
+                    <button class="btn btn-batch" onclick="batchDownload()">
+                        <i class="fas fa-download"></i> 批量下载
+                    </button>
+                    <button class="btn btn-batch btn-danger" onclick="batchDelete()">
+                        <i class="fas fa-trash"></i> 批量删除
+                    </button>
+                    <span id="selectedCount" style="margin-left: 10px; color: #667eea; font-weight: bold;">已选择 0 个文件</span>
+                </div>
             </div>
             
             <div class="file-list" id="fileList">

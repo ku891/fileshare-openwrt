@@ -3,6 +3,7 @@ let currentImageFile = null;
 let autoSaveTimer = null;
 let isAutoSaving = false;
 let accessPassword = localStorage.getItem('accessPassword') || '';
+let selectedFiles = new Set();
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -287,9 +288,13 @@ function displayFiles(files) {
         const fileIcon = getFileIcon(file.name, file.isImage, file.isVideo);
         const fileSize = formatFileSize(file.size);
         const uploadTime = new Date(file.uploadTime).toLocaleString();
+        const isSelected = selectedFiles.has(file.name);
 
         return `
-            <div class="file-item" onclick="handleFileClick('${file.name}', ${file.isImage}, ${file.isVideo})">
+            <div class="file-item ${isSelected ? 'selected' : ''}" onclick="handleFileClick('${file.name}', ${file.isImage}, ${file.isVideo})">
+                <div class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection('${file.name}')">
+                    <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleFileSelection('${file.name}')">
+                </div>
                 <div class="file-item-header">
                     ${file.isImage || file.isVideo ? `
                         <div class="file-thumbnail">
@@ -335,6 +340,8 @@ function displayFiles(files) {
             </div>
         `;
     }).join('');
+    
+    updateBatchActions();
 }
 
 // 获取文件图标
@@ -759,4 +766,124 @@ document.addEventListener('keydown', function(event) {
         saveSharedText();
     }
 });
+
+// ==================== 批量操作功能 ====================
+
+// 切换文件选择状态
+function toggleFileSelection(filename) {
+    if (selectedFiles.has(filename)) {
+        selectedFiles.delete(filename);
+    } else {
+        selectedFiles.add(filename);
+    }
+    updateBatchActions();
+    displayFiles(currentFiles);
+}
+
+// 更新批量操作按钮显示
+function updateBatchActions() {
+    const batchActions = document.getElementById('batchActions');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (selectedFiles.size > 0) {
+        batchActions.style.display = 'flex';
+        selectedCount.textContent = `已选择 ${selectedFiles.size} 个文件`;
+    } else {
+        batchActions.style.display = 'none';
+    }
+}
+
+// 全选/取消全选
+function selectAllFiles() {
+    if (selectedFiles.size === currentFiles.length) {
+        selectedFiles.clear();
+    } else {
+        currentFiles.forEach(file => selectedFiles.add(file.name));
+    }
+    updateBatchActions();
+    displayFiles(currentFiles);
+}
+
+// 批量下载
+async function batchDownload() {
+    if (selectedFiles.size === 0) {
+        showToast('请先选择要下载的文件', 'error');
+        return;
+    }
+    
+    const files = Array.from(selectedFiles);
+    showToast(`开始下载 ${files.length} 个文件...`, 'info');
+    
+    for (let i = 0; i < files.length; i++) {
+        const filename = files[i];
+        try {
+            await downloadFile(filename);
+            // 延迟一下避免浏览器阻止多个下载
+            if (i < files.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        } catch (error) {
+            console.error(`下载 ${filename} 失败:`, error);
+        }
+    }
+    
+    showToast(`已开始下载 ${files.length} 个文件`, 'success');
+}
+
+// 批量删除
+async function batchDelete() {
+    if (selectedFiles.size === 0) {
+        showToast('请先选择要删除的文件', 'error');
+        return;
+    }
+    
+    const files = Array.from(selectedFiles);
+    const count = files.length;
+    
+    if (!confirm(`确定要删除选中的 ${count} 个文件吗？此操作不可恢复！`)) {
+        return;
+    }
+    
+    showToast(`正在删除 ${count} 个文件...`, 'info');
+    
+    const headers = {};
+    if (accessPassword) {
+        headers['x-access-password'] = accessPassword;
+    }
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const filename of files) {
+        try {
+            const response = await fetch(`/api/delete/${filename}`, {
+                method: 'DELETE',
+                headers: headers
+            });
+            
+            if (response.ok) {
+                successCount++;
+                selectedFiles.delete(filename);
+            } else {
+                failCount++;
+            }
+        } catch (error) {
+            console.error(`删除 ${filename} 失败:`, error);
+            failCount++;
+        }
+    }
+    
+    if (successCount > 0) {
+        showToast(`成功删除 ${successCount} 个文件${failCount > 0 ? `，${failCount} 个失败` : ''}`, successCount === count ? 'success' : 'warning');
+        if (accessPassword) {
+            loadFilesWithPassword();
+        } else {
+            loadFiles();
+        }
+    } else {
+        showToast('删除失败', 'error');
+    }
+    
+    updateBatchActions();
+}
 

@@ -206,11 +206,49 @@ header p {
     margin-bottom: 20px;
     padding-bottom: 15px;
     border-bottom: 2px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .section-header h2 {
     color: #333;
     font-size: 1.5rem;
+    margin: 0;
+}
+
+.batch-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-batch {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: #667eea;
+    color: white;
+}
+
+.btn-batch:hover {
+    background: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-batch.btn-danger {
+    background: #dc3545;
+}
+
+.btn-batch.btn-danger:hover {
+    background: #c82333;
 }
 
 .file-list {
@@ -231,12 +269,37 @@ header p {
     display: flex;
     flex-direction: column;
     height: 100%;
+    position: relative;
 }
 
 .file-item:hover {
     transform: translateY(-5px);
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     border-color: #667eea;
+}
+
+.file-item.selected {
+    border-color: #667eea;
+    background: #f0f4ff;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+}
+
+.file-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    padding: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.file-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #667eea;
 }
 
 .file-item-header {
