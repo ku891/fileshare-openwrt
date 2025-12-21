@@ -59,7 +59,24 @@ start_service() {
 }
 
 reload_service() {
+    . /lib/functions.sh
+    config_load fileshare
+    
+    local enabled port password allowed_hosts
+    config_get_bool enabled config enabled 1
+    [ "$enabled" = "0" ] && stop && return 0
+    
+    config_get port config port 3000
+    config_get password config password "123456"
+    config_get allowed_hosts config allowed_hosts ""
+    
+    # 停止旧服务
     stop
+    
+    # 等待进程完全退出
+    sleep 1
+    
+    # 重新启动服务
     start
 }
 
