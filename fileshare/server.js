@@ -52,7 +52,7 @@ function loadConfig() {
             break;
           }
           case 'password':
-            config.password = value || defaultConfig.password;
+            if (value) config.password = value;
             break;
           case 'allowed_hosts':
             if (value) {
@@ -65,11 +65,7 @@ function loadConfig() {
       }
     }
 
-    console.log('=== 配置加载成功 ===');
-    console.log(`端口: ${config.port}`);
-    console.log(`密码: ${config.password ? '已设置' : '未设置'}`);
-    console.log(`允许主机: ${config.allowed_hosts.length > 0 ? config.allowed_hosts.join(', ') : '无'}`);
-    console.log('==================');
+    console.log(`配置加载: 端口=${config.port}, 密码=${config.password ? '已设置' : '未设置'}, 允许主机=${config.allowed_hosts.length > 0 ? config.allowed_hosts.join(',') : '无'}`);
 
     return config;
   } catch (error) {
@@ -81,8 +77,6 @@ function loadConfig() {
 
 // 加载配置
 const config = loadConfig();
-
-// 导出配置值
 const PORT = config.port;
 const ACCESS_PASSWORD = config.password;
 const ALLOWED_HOSTS = config.allowed_hosts;
@@ -136,12 +130,9 @@ app.use(express.json());
 
 // 根路径路由（必须在静态文件服务之前）
 app.get('/', (req, res) => {
-  const indexPath = path.resolve(publicDir, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(404).send('index.html not found');
-  }
+  res.sendFile(path.join(publicDir, 'index.html'), (err) => {
+    if (err) res.status(404).send('index.html not found');
+  });
 });
 
 // 静态文件服务（不需要密码验证）
@@ -185,18 +176,18 @@ function checkPassword(req, res, next) {
   }
   
   const attemptRecord = failedAttempts.get(ip);
-  if (attemptRecord?.lockUntil && Date.now() < attemptRecord.lockUntil) {
-    const remainingTime = Math.ceil((attemptRecord.lockUntil - Date.now()) / 1000 / 60 / 60);
-    return res.status(401).json({ 
-      requiresPassword: true,
-      message: `密码错误次数过多，账户已被锁定。剩余时间：${remainingTime}小时`,
-      locked: true,
-      remainingHours: remainingTime
-    });
-  }
-  
-  if (attemptRecord?.lockUntil && Date.now() >= attemptRecord.lockUntil) {
-    failedAttempts.delete(ip);
+  if (attemptRecord?.lockUntil) {
+    if (Date.now() < attemptRecord.lockUntil) {
+      const remainingTime = Math.ceil((attemptRecord.lockUntil - Date.now()) / 1000 / 60 / 60);
+      return res.status(401).json({ 
+        requiresPassword: true,
+        message: `密码错误次数过多，账户已被锁定。剩余时间：${remainingTime}小时`,
+        locked: true,
+        remainingHours: remainingTime
+      });
+    } else {
+      failedAttempts.delete(ip);
+    }
   }
   
   const password = req.headers['x-access-password'] || req.query.password;
@@ -225,17 +216,18 @@ function checkPassword(req, res, next) {
         locked: true,
         remainingHours: 24
       });
-    } else {
-      failedAttempts.set(ip, { count: newCount, lockUntil: null });
-      const remainingAttempts = MAX_FAILED_ATTEMPTS - newCount;
-      return res.status(401).json({ 
-        requiresPassword: true,
-        message: `密码错误，剩余尝试次数：${remainingAttempts}`,
-        remainingAttempts: remainingAttempts
-      });
     }
+    
+    failedAttempts.set(ip, { count: newCount, lockUntil: null });
+    const remainingAttempts = MAX_FAILED_ATTEMPTS - newCount;
+    return res.status(401).json({ 
+      requiresPassword: true,
+      message: `密码错误，剩余尝试次数：${remainingAttempts}`,
+      remainingAttempts: remainingAttempts
+    });
   }
   
+  // 密码验证成功，清除失败记录
   if (attemptRecord) {
     failedAttempts.delete(ip);
   }
@@ -264,16 +256,13 @@ app.get('/api/files', checkPassword, async (req, res) => {
   try {
     const files = await fs.readdir(uploadDir);
     const fileList = await Promise.all(files.map(async (file) => {
-      const filePath = path.join(uploadDir, file);
-      const stats = await fs.stat(filePath);
-      const isImage = /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file);
-      const isVideo = /\.(mp4|avi|mov|wmv|flv|webm|mkv)$/i.test(file);
+      const stats = await fs.stat(path.join(uploadDir, file));
       return {
         name: file,
         size: stats.size,
         uploadTime: stats.birthtime,
-        isImage: isImage,
-        isVideo: isVideo
+        isImage: /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file),
+        isVideo: /\.(mp4|avi|mov|wmv|flv|webm|mkv)$/i.test(file)
       };
     }));
     
@@ -306,27 +295,23 @@ app.post('/api/upload', checkPassword, upload.array('files', 10), (req, res) => 
 // 文件下载
 app.get('/api/download/:filename', (req, res) => {
   const filePath = path.join(uploadDir, req.params.filename);
-  
-  if (fs.existsSync(filePath)) {
-    res.download(filePath, req.params.filename);
-  } else {
-    res.status(404).json({ error: '文件不存在' });
-  }
+  res.download(filePath, req.params.filename, (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: '文件不存在' });
+  });
 });
 
 // 删除文件
 app.delete('/api/delete/:filename', checkPassword, async (req, res) => {
   try {
     const filePath = path.join(uploadDir, req.params.filename);
-    
-    if (fs.existsSync(filePath)) {
-      await fs.remove(filePath);
-      res.json({ message: '文件删除成功' });
-    } else {
-      res.status(404).json({ error: '文件不存在' });
-    }
+    await fs.remove(filePath);
+    res.json({ message: '文件删除成功' });
   } catch (error) {
-    res.status(500).json({ error: '文件删除失败' });
+    if (error.code === 'ENOENT') {
+      res.status(404).json({ error: '文件不存在' });
+    } else {
+      res.status(500).json({ error: '文件删除失败' });
+    }
   }
 });
 
@@ -355,11 +340,5 @@ app.post('/api/shared-text', checkPassword, async (req, res) => {
 // 启动服务器
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`文件共享服务器运行在 http://0.0.0.0:${PORT}`);
-  console.log(`工作目录: ${__dirname}`);
-  console.log(`上传目录: ${uploadDir}`);
-  console.log(`前端目录: ${publicDir}`);
-  console.log(`前端文件存在: ${fs.existsSync(path.join(publicDir, 'index.html')) ? '是' : '否'}`);
-  console.log(`允许免密码访问的主机: ${ALLOWED_HOSTS.length > 0 ? ALLOWED_HOSTS.join(', ') : '无'}`);
-  console.log(`密码错误限制: ${MAX_FAILED_ATTEMPTS}次后锁定${LOCKOUT_DURATION / 1000 / 60 / 60}小时`);
 });
 
