@@ -13,7 +13,7 @@ start_service() {
     . /lib/functions.sh
     config_load fileshare
     
-    local enabled port password allowed_hosts
+    local enabled
     config_get_bool enabled config enabled 1
     [ "$enabled" = "0" ] && return 0
     
@@ -37,23 +37,11 @@ start_service() {
         fi
     fi
     
-    config_get port config port 3000
-    config_get password config password "123456"
-    config_get allowed_hosts config allowed_hosts ""
-    
-    # 验证端口值
-    if [ -z "$port" ] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
-        logger -t fileshare "警告: 端口值无效 ($port)，使用默认值 3000"
-        port=3000
-    fi
-    
-    logger -t fileshare "配置读取 - 端口: $port, 密码: ${password:+已设置}, 允许主机: ${allowed_hosts:-无}"
+    # server.js 会直接从 /etc/config/fileshare 读取配置，无需通过环境变量传递
+    logger -t fileshare "启动服务（配置将从 /etc/config/fileshare 读取）"
     
     procd_open_instance
     procd_set_param command /usr/bin/node "$SERVICE_DIR/server.js"
-    procd_set_param env PORT="${port}"
-    procd_set_param env ACCESS_PASSWORD="${password}"
-    [ -n "$allowed_hosts" ] && procd_set_param env ALLOWED_HOSTS="${allowed_hosts}"
     procd_set_param env NODE_ENV="production"
     procd_set_param cwd "$SERVICE_DIR"
     procd_set_param stdout 1
@@ -63,28 +51,18 @@ start_service() {
     procd_set_param respawn_timeout 10
     procd_close_instance
     
-    logger -t fileshare "服务已启动，监听端口: $port"
+    logger -t fileshare "服务已启动"
 }
 
 reload_service() {
     . /lib/functions.sh
     config_load fileshare
     
-    local enabled port password allowed_hosts
+    local enabled
     config_get_bool enabled config enabled 1
     [ "$enabled" = "0" ] && stop && return 0
     
-    config_get port config port 3000
-    config_get password config password "123456"
-    config_get allowed_hosts config allowed_hosts ""
-    
-    # 验证端口值
-    if [ -z "$port" ] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
-        logger -t fileshare "警告: 端口值无效 ($port)，使用默认值 3000"
-        port=3000
-    fi
-    
-    logger -t fileshare "重新加载配置 - 端口: $port, 密码: ${password:+已设置}, 允许主机: ${allowed_hosts:-无}"
+    logger -t fileshare "重新加载配置（server.js 将从 /etc/config/fileshare 读取最新配置）"
     
     # 停止旧服务
     stop
@@ -92,7 +70,7 @@ reload_service() {
     # 等待进程完全退出
     sleep 2
     
-    # 重新启动服务（调用 start_service 以确保使用最新配置）
+    # 重新启动服务（server.js 会自动读取最新配置）
     start_service
 }
 

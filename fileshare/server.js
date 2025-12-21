@@ -6,22 +6,86 @@ const fs = require('fs-extra');
 
 const app = express();
 
-// 从环境变量读取配置（由 OpenWrt init 脚本设置）
-// 调试：打印所有相关环境变量
-console.log('=== 环境变量调试信息 ===');
-console.log('process.env.PORT:', process.env.PORT);
-console.log('process.env.ACCESS_PASSWORD:', process.env.ACCESS_PASSWORD ? '已设置' : '未设置');
-console.log('process.env.ALLOWED_HOSTS:', process.env.ALLOWED_HOSTS || '未设置');
-console.log('process.env.NODE_ENV:', process.env.NODE_ENV || '未设置');
-console.log('========================');
+// ==================== 配置管理模块 ====================
+// 统一的配置读取和验证函数
+const CONFIG_FILE = '/etc/config/fileshare';
 
-const PORT_ENV = process.env.PORT;
-const PORT = PORT_ENV ? parseInt(PORT_ENV, 10) : 3000;
-const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '123456';
-const ALLOWED_HOSTS_ENV = process.env.ALLOWED_HOSTS || '';
-const ALLOWED_HOSTS = ALLOWED_HOSTS_ENV 
-  ? ALLOWED_HOSTS_ENV.split(',').map(h => h.trim()).filter(h => h)
-  : [];
+/**
+ * 读取 UCI 配置文件
+ * @returns {Object} 配置对象
+ */
+function loadConfig() {
+  const defaultConfig = {
+    port: 3000,
+    password: '123456',
+    allowed_hosts: []
+  };
+
+  try {
+    if (!fs.existsSync(CONFIG_FILE)) {
+      console.warn(`配置文件不存在: ${CONFIG_FILE}，使用默认配置`);
+      return defaultConfig;
+    }
+
+    const configContent = fs.readFileSync(CONFIG_FILE, 'utf8');
+    const config = { ...defaultConfig };
+
+    // 解析 UCI 配置文件格式
+    // 格式: option key 'value' 或 option key "value"
+    const optionRegex = /^\s*option\s+(\w+)\s+['"]([^'"]+)['"]/;
+    const lines = configContent.split('\n');
+
+    for (const line of lines) {
+      const match = line.match(optionRegex);
+      if (match) {
+        const key = match[1];
+        const value = match[2];
+
+        switch (key) {
+          case 'port':
+            const port = parseInt(value, 10);
+            if (port >= 1 && port <= 65535) {
+              config.port = port;
+            } else {
+              console.warn(`无效的端口值: ${value}，使用默认值 3000`);
+            }
+            break;
+          case 'password':
+            config.password = value || defaultConfig.password;
+            break;
+          case 'allowed_hosts':
+            if (value) {
+              config.allowed_hosts = value.split(',')
+                .map(h => h.trim())
+                .filter(h => h);
+            }
+            break;
+        }
+      }
+    }
+
+    console.log('=== 配置加载成功 ===');
+    console.log(`端口: ${config.port}`);
+    console.log(`密码: ${config.password ? '已设置' : '未设置'}`);
+    console.log(`允许主机: ${config.allowed_hosts.length > 0 ? config.allowed_hosts.join(', ') : '无'}`);
+    console.log('==================');
+
+    return config;
+  } catch (error) {
+    console.error('读取配置文件失败:', error);
+    console.warn('使用默认配置');
+    return defaultConfig;
+  }
+}
+
+// 加载配置
+const config = loadConfig();
+
+// 导出配置值
+const PORT = config.port;
+const ACCESS_PASSWORD = config.password;
+const ALLOWED_HOSTS = config.allowed_hosts;
+// ==================== 配置管理模块结束 ====================
 
 // 安全配置（固定值，不需要从配置读取）
 const MAX_FAILED_ATTEMPTS = 5;
@@ -290,7 +354,6 @@ app.post('/api/shared-text', checkPassword, async (req, res) => {
 // 启动服务器
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`文件共享服务器运行在 http://0.0.0.0:${PORT}`);
-  console.log(`环境变量 PORT: ${PORT_ENV || '未设置'} (解析为: ${PORT})`);
   console.log(`工作目录: ${__dirname}`);
   console.log(`上传目录: ${uploadDir}`);
   console.log(`前端目录: ${publicDir}`);
