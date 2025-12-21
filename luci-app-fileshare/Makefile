@@ -32,9 +32,11 @@ endef
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
 	$(CP) $(CURDIR)/luasrc $(PKG_BUILD_DIR)/ -r
+	@echo "# Empty Makefile for LuCI app" > $(PKG_BUILD_DIR)/Makefile
 endef
 
 define Build/Compile
+	@echo "No compilation needed for Lua files"
 endef
 
 define Package/luci-app-fileshare/install
