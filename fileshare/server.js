@@ -7,7 +7,8 @@ const fs = require('fs-extra');
 const app = express();
 
 // 从环境变量读取配置（由 OpenWrt init 脚本设置）
-const PORT = parseInt(process.env.PORT) || 3000;
+const PORT_ENV = process.env.PORT;
+const PORT = PORT_ENV ? parseInt(PORT_ENV, 10) : 3000;
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '123456';
 const ALLOWED_HOSTS_ENV = process.env.ALLOWED_HOSTS || '';
 const ALLOWED_HOSTS = ALLOWED_HOSTS_ENV 
@@ -281,6 +282,7 @@ app.post('/api/shared-text', checkPassword, async (req, res) => {
 // 启动服务器
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`文件共享服务器运行在 http://0.0.0.0:${PORT}`);
+  console.log(`环境变量 PORT: ${PORT_ENV || '未设置'} (解析为: ${PORT})`);
   console.log(`工作目录: ${__dirname}`);
   console.log(`上传目录: ${uploadDir}`);
   console.log(`前端目录: ${publicDir}`);
