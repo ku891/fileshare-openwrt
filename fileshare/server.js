@@ -28,7 +28,7 @@ function loadConfig() {
     }
 
     const configContent = fs.readFileSync(CONFIG_FILE, 'utf8');
-    const config = { ...defaultConfig };
+    const config = Object.assign({}, defaultConfig);
 
     // 解析 UCI 配置文件格式
     // 格式: option key 'value' 或 option key "value"
@@ -42,7 +42,7 @@ function loadConfig() {
         const value = match[2];
 
         switch (key) {
-          case 'port':
+          case 'port': {
             const port = parseInt(value, 10);
             if (port >= 1 && port <= 65535) {
               config.port = port;
@@ -50,6 +50,7 @@ function loadConfig() {
               console.warn(`无效的端口值: ${value}，使用默认值 3000`);
             }
             break;
+          }
           case 'password':
             config.password = value || defaultConfig.password;
             break;
