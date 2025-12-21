@@ -31,7 +31,7 @@ endef
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ./luasrc $(PKG_BUILD_DIR)/ -r
+	$(CP) $(CURDIR)/luasrc $(PKG_BUILD_DIR)/ -r
 endef
 
 define Build/Configure

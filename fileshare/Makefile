@@ -32,10 +32,13 @@ endef
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ./files/* $(PKG_BUILD_DIR)/
-	$(CP) ./server.js $(PKG_BUILD_DIR)/
-	$(CP) ./package.json $(PKG_BUILD_DIR)/
-	$(CP) ./public $(PKG_BUILD_DIR)/ -r
+	$(CP) $(CURDIR)/files/* $(PKG_BUILD_DIR)/
+	$(CP) $(CURDIR)/server.js $(PKG_BUILD_DIR)/
+	$(CP) $(CURDIR)/package.json $(PKG_BUILD_DIR)/
+	$(CP) $(CURDIR)/public $(PKG_BUILD_DIR)/ -r
+endef
+
+define Build/Compile
 endef
 
 
