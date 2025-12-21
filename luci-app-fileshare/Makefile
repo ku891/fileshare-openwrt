@@ -32,9 +32,12 @@ endef
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
 	$(CP) $(CURDIR)/luasrc $(PKG_BUILD_DIR)/ -r
-	@echo "# Empty Makefile for LuCI app" > $(PKG_BUILD_DIR)/Makefile
+	echo "# Empty Makefile for LuCI app" > $(PKG_BUILD_DIR)/Makefile
 	# 转换所有 Lua 文件为 Unix 格式（移除 Windows CRLF）
-	@find $(PKG_BUILD_DIR)/luasrc -type f -name "*.lua" -exec sed -i 's/\r$$//' {} \;
+	find $(PKG_BUILD_DIR)/luasrc -type f -name "*.lua" | while read file; do \
+		tr -d '\r' < "$$file" > "$$file.tmp" && \
+		mv "$$file.tmp" "$$file"; \
+	done || true
 endef
 
 define Build/Compile
