@@ -22,6 +22,29 @@ start_service() {
     # 检查服务是否启用
     [ "$enabled" = "0" ] && return 0
     
+    # 检查 Node.js 是否存在
+    if [ ! -x "/usr/bin/node" ]; then
+        logger -t fileshare "错误: Node.js 未安装，请运行: opkg install node"
+        return 1
+    fi
+    
+    # 检查 server.js 是否存在
+    if [ ! -f "$SERVICE_DIR/server.js" ]; then
+        logger -t fileshare "错误: server.js 不存在于 $SERVICE_DIR"
+        return 1
+    fi
+    
+    # 检查 node_modules 是否存在
+    if [ ! -d "$SERVICE_DIR/node_modules" ]; then
+        logger -t fileshare "警告: node_modules 不存在，尝试安装依赖..."
+        if [ -x "/usr/bin/npm" ] && [ -f "$SERVICE_DIR/package.json" ]; then
+            cd "$SERVICE_DIR" && npm install --production --no-save 2>&1 | logger -t fileshare
+        else
+            logger -t fileshare "错误: npm 未安装或 package.json 不存在"
+            return 1
+        fi
+    fi
+    
     config_get port config port 3000
     config_get password config password "Ku444Ku444@"
     config_get allowed_hosts config allowed_hosts ""
@@ -48,6 +71,8 @@ start_service() {
     procd_set_param respawn_timeout 10
     
     procd_close_instance
+    
+    logger -t fileshare "服务已启动，监听端口: $port"
 }
 
 reload_service() {

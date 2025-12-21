@@ -39,6 +39,8 @@ define Build/Prepare
 endef
 
 define Build/Compile
+	cd $(PKG_BUILD_DIR) && \
+	npm install --production --no-save --prefix $(PKG_BUILD_DIR)
 endef
 
 
@@ -54,6 +56,7 @@ define Package/fileshare/install
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/server.js $(1)/usr/lib/fileshare/
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/package.json $(1)/usr/lib/fileshare/
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/public/* $(1)/usr/lib/fileshare/public/
+	$(CP) $(PKG_BUILD_DIR)/node_modules $(1)/usr/lib/fileshare/ -r
 endef
 
 $(eval $(call BuildPackage,fileshare))
