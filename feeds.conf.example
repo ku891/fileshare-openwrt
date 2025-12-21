@@ -1,0 +1,5 @@
+# Example feeds.conf entry for FileShare plugin
+# Add this line to your OpenWrt feeds.conf or feeds.conf.default
+
+src-git fileshare https://github.com/yourusername/fileshare-openwrt.git
+
