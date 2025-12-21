@@ -5,7 +5,11 @@ const path = require('path');
 const fs = require('fs-extra');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+// 调试：记录实际使用的端口
+console.log(`[DEBUG] 环境变量 PORT: ${process.env.PORT}`);
+console.log(`[DEBUG] 实际监听端口: ${PORT}`);
 
 // 访问控制配置
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '123456'; // 默认密码

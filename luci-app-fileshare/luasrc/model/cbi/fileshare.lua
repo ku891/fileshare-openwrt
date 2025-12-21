@@ -26,12 +26,7 @@ allowed_hosts.default = "192.168.1.1"
 allowed_hosts.placeholder = "192.168.1.1,192.168.1.100"
 
 function m.on_after_commit(self)
-    -- LuCI 已经自动提交了配置，但为了确保，再次提交
-    luci.sys.call("uci commit fileshare >/dev/null 2>&1")
-    -- 等待配置写入完成
-    luci.sys.call("sleep 1 >/dev/null 2>&1")
-    -- 使用 restart 确保完全重启（stop + start），而不是 reload
-    luci.sys.call("/etc/init.d/fileshare restart >/dev/null 2>&1")
+    luci.sys.call("/etc/init.d/fileshare reload >/dev/null 2>&1")
 end
 
 return m
