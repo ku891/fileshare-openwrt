@@ -3,17 +3,8 @@ require("luci.util")
 
 m = Map("fileshare", translate("内网共享配置"), translate("配置内网共享服务的参数"))
 
--- 运行状态部分
-status_section = m:section(TypedSection, "status", translate("运行状态"))
-status_section.template = "cbi/tblsection"
-status_section.addremove = false
-
--- 检查服务状态
-local is_running = false
-local pid = luci.sys.exec("pgrep -f 'node.*server.js' | head -1")
-if pid and pid ~= "" then
-    is_running = true
-end
+s = m:section(NamedSection, "config", "fileshare", translate("基本设置"))
+s.addremove = false
 
 -- 获取端口配置
 local port = "3000"
@@ -21,28 +12,27 @@ m.uci:foreach("fileshare", "fileshare", function(s)
     port = s.port or "3000"
 end)
 
--- 获取主机地址
-local host = luci.http.getenv("HTTP_HOST") or luci.sys.net.hostname()
-local protocol = luci.http.getenv("HTTPS") == "on" and "https" or "http"
-local url = protocol .. "://" .. host .. ":" .. port
+-- 获取路由IP地址
+local ip = luci.sys.exec("uci get network.lan.ipaddr 2>/dev/null | head -1")
+if not ip or ip == "" then
+    ip = luci.sys.exec("ifconfig br-lan 2>/dev/null | grep 'inet addr' | awk '{print $2}' | cut -d: -f2 | head -1")
+end
+if not ip or ip == "" then
+    ip = "192.168.1.1"
+end
+ip = ip:gsub("%s+", "")
 
--- 状态显示
-local status_text = is_running and '<span style="color: green; font-weight: bold;">● ' .. translate("运行中") .. '</span>' or '<span style="color: red; font-weight: bold;">● ' .. translate("已停止") .. '</span>'
-local status_dummy = status_section:option(DummyValue, "status", translate("服务状态"))
-status_dummy.value = status_text
-status_dummy.rawhtml = true
+-- 构建URL
+local url = "http://" .. ip .. ":" .. port
 
 -- 打开网页按钮
-local open_btn = status_section:option(Button, "open_web", translate("打开网页"))
-open_btn.inputtitle = translate("在新窗口打开")
+local open_btn = s:option(Button, "open_web", translate("打开网页"), translate("在新窗口打开 fileshare 网页"))
+open_btn.inputtitle = translate("打开网页")
 open_btn.inputstyle = "add"
 function open_btn.write(self, section, value)
     luci.http.write('<script>window.open("' .. url .. '", "_blank");</script>')
     return
 end
-
-s = m:section(NamedSection, "config", "fileshare", translate("基本设置"))
-s.addremove = false
 
 enabled = s:option(Flag, "enabled", translate("启用服务"), translate("启用或禁用内网共享服务"))
 enabled.default = "1"
