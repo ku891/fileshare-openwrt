@@ -98,7 +98,7 @@ opkg install /tmp/luci-app-fileshare_*.ipk
 
 1. 登录 LuCI 管理界面
 2. 导航到：**服务** → **内网共享**
-3. 配置端口、密码、允许的主机和本地域名
+3. 配置端口、密码和允许的主机
 4. 启用服务并保存
 
 #### 使用命令行
@@ -124,8 +124,6 @@ config fileshare 'config'
     option port '3000'              # 服务端口
     option password '123456'         # 访问密码
     option allowed_hosts '192.168.1.1'  # 允许免密码访问的主机
-    option local_domain 'fileshare.lan'  # 本地域名（默认：fileshare.lan）
-    option use_domain '1'            # 是否使用域名打开网页（1=使用域名，0=使用IP）
 ```
 
 ## 🔧 功能特性
@@ -138,8 +136,6 @@ config fileshare 'config'
 - ✅ 内网免密码访问（可配置）
 - ✅ 外网强制密码验证
 - ✅ 密码错误锁定保护
-- ✅ 本地域名配置（支持通过域名访问，默认 fileshare.lan）
-- ✅ 自动DNS记录管理（修改域名时自动添加/删除DNS解析）
 
 ## 📄 许可证
 
