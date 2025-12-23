@@ -426,7 +426,7 @@ app.set('trust proxy', true); // 信任代理，正确获取客户端 IP
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // JSON 限制，大文件通过 FormData 上传
 // 增加请求体大小限制（用于大文件上传）
-app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500GB' }));
 
 // 增加服务器超时设置（大文件上传需要更长时间）
 app.use((req, res, next) => {
@@ -556,9 +556,9 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage,
   limits: { 
-    fileSize: 500 * 1024 * 1024, // 500MB
+    fileSize: 500 * 1024 * 1024 * 1024, // 500GB
     fieldSize: 10 * 1024 * 1024, // 10MB 字段大小
-    files: 10 // 最多10个文件
+    files: 20 // 最多20个文件
   },
   fileFilter: (req, file, cb) => cb(null, true),
   // 优化大文件上传性能
@@ -605,9 +605,9 @@ app.post('/api/upload', checkPassword, (req, res) => {
   upload.array('files', 10)(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: '文件过大，最大支持500MB' });
+        return res.status(400).json({ error: '文件过大，最大支持500GB' });
       } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-        return res.status(400).json({ error: '文件数量过多，最多10个文件' });
+        return res.status(400).json({ error: '文件数量过多，最多20个文件' });
       } else {
         console.error('上传错误:', err);
         return res.status(500).json({ error: '文件上传失败: ' + err.message });
