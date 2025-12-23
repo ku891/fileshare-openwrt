@@ -17,6 +17,35 @@ start_service() {
     config_get_bool enabled config enabled 1
     [ "$enabled" = "0" ] && return 0
     
+    # 检查并安装 openssl-util（如果未安装）
+    local openssl_installed=0
+    if command -v openssl >/dev/null 2>&1; then
+        openssl_installed=1
+    elif opkg list-installed | grep -q "^openssl-util"; then
+        openssl_installed=1
+    fi
+    
+    if [ "$openssl_installed" = "0" ]; then
+        logger -t fileshare "警告: openssl 未安装，尝试安装 openssl-util 包..."
+        
+        # 更新包列表
+        opkg update 2>&1 | logger -t fileshare
+        
+        # 安装 openssl-util
+        if opkg install openssl-util 2>&1 | logger -t fileshare; then
+            if [ $? -eq 0 ]; then
+                logger -t fileshare "openssl-util 安装成功"
+            else
+                logger -t fileshare "错误: openssl-util 安装失败，但继续启动服务..."
+            fi
+        else
+            logger -t fileshare "错误: 无法安装 openssl-util，请手动运行: opkg update && opkg install openssl-util"
+            # 这里可以选择不返回错误，因为openssl可能不是必需的
+            # 根据实际需求决定是否注释掉下一行
+            # return 1
+        fi
+    fi
+    
     if [ ! -x "/usr/bin/node" ]; then
         logger -t fileshare "错误: Node.js 未安装，请运行: opkg install node"
         return 1
