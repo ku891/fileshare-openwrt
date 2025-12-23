@@ -100,10 +100,6 @@ opkg install /tmp/luci-app-fileshare_*.ipk
 2. 导航到：**服务** → **内网共享**
 3. 配置端口、密码和允许的主机
 4. 启用服务并保存
-5. https 需要手动安装openssl
-   # openssl 安装命令 
-   opkg update
-   opkg install openssl-util
 
 #### 使用命令行
 
@@ -142,10 +138,7 @@ config fileshare 'config'
 - ✅ 密码错误锁定保护
 - ✅ 文本文件编辑
 - ✅ 文件链接
-- ✅ https 需要手动安装openssl
-      # openssl 安装命令 
-      opkg update
-      opkg install openssl-util
+- ✅ https  外网访问你需要手动申请证书, 替换源证书/usr/lib/fileshare/certs/ 文件名保持一致 端口映射
 - ✅ 本地域名
 ## 📄 许可证
 
