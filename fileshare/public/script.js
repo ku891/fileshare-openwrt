@@ -1,5 +1,6 @@
 let currentFiles = [];
 let currentImageFile = null;
+let currentTextFile = null;
 let autoSaveTimer = null;
 let isAutoSaving = false;
 let accessPassword = localStorage.getItem('accessPassword') || '';
@@ -212,9 +213,17 @@ function setupFileUpload() {
     });
 }
 
-// 上传文件
+// 上传文件（带进度显示）
 async function uploadFiles(files) {
     if (files.length === 0) return;
+
+    // 显示上传进度提示
+    const totalSize = Array.from(files).reduce((sum, file) => sum + file.size, 0);
+    const isLargeFile = totalSize > 50 * 1024 * 1024; // 大于50MB显示进度
+    
+    if (isLargeFile) {
+        showToast(`开始上传 ${files.length} 个文件（${formatFileSize(totalSize)}）...`, 'info');
+    }
 
     const formData = new FormData();
     for (let file of files) {
@@ -227,29 +236,95 @@ async function uploadFiles(files) {
             headers['x-access-password'] = accessPassword;
         }
         
-        const response = await fetch('/api/upload', {
-            method: 'POST',
-            headers: headers,
-            body: formData
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            showToast('文件上传成功！', 'success');
+        // 使用 XMLHttpRequest 以支持上传进度
+        const xhr = new XMLHttpRequest();
+        let lastProgressUpdate = 0;
+        let lastPercent = -1;
+        
+        return new Promise((resolve, reject) => {
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && isLargeFile) {
+                    const now = Date.now();
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    
+                    // 限制更新频率：每2秒更新一次，或者进度变化超过5%
+                    if (now - lastProgressUpdate > 2000 || Math.abs(percent - lastPercent) >= 5) {
+                        showToast(`上传进度: ${percent}% (${formatFileSize(e.loaded)}/${formatFileSize(e.total)})`, 'info');
+                        lastProgressUpdate = now;
+                        lastPercent = percent;
+                    }
+                }
+            });
+            
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    try {
+                        const result = JSON.parse(xhr.responseText);
+                        showToast('文件上传成功！', 'success');
+                        if (accessPassword) {
+                            loadFilesWithPassword();
+                        } else {
+                            loadFiles();
+                        }
+                        resolve(result);
+                    } catch (e) {
+                        showToast('上传成功，但解析响应失败', 'warning');
+                        if (accessPassword) {
+                            loadFilesWithPassword();
+                        } else {
+                            loadFiles();
+                        }
+                        resolve();
+                    }
+                } else if (xhr.status === 401) {
+                    showToast('需要密码才能上传', 'error');
+                    document.getElementById('passwordScreen').style.display = 'block';
+                    reject(new Error('需要密码'));
+                } else {
+                    try {
+                        const result = JSON.parse(xhr.responseText);
+                        showToast('上传失败：' + (result.error || '未知错误'), 'error');
+                    } catch (e) {
+                        showToast('上传失败：服务器错误', 'error');
+                    }
+                    reject(new Error('上传失败'));
+                }
+            });
+            
+            xhr.addEventListener('error', () => {
+                showToast('上传失败：网络错误', 'error');
+                reject(new Error('网络错误'));
+            });
+            
+            xhr.addEventListener('timeout', () => {
+                showToast('上传超时，请重试', 'error');
+                reject(new Error('上传超时'));
+            });
+            
+            xhr.addEventListener('abort', () => {
+                showToast('上传已取消', 'warning');
+                reject(new Error('上传已取消'));
+            });
+            
+            xhr.open('POST', '/api/upload');
             if (accessPassword) {
-                loadFilesWithPassword();
-            } else {
-                loadFiles();
+                xhr.setRequestHeader('x-access-password', accessPassword);
             }
-        } else if (response.status === 401) {
-            showToast('需要密码才能上传', 'error');
-            document.getElementById('passwordScreen').style.display = 'block';
-        } else {
-            showToast('上传失败：' + result.error, 'error');
-        }
+            // 增加超时时间到30分钟（大文件需要更长时间）
+            xhr.timeout = 30 * 60 * 1000; // 30分钟
+            // 禁用自动重定向
+            xhr.responseType = 'text';
+            
+            // 发送请求
+            try {
+                xhr.send(formData);
+            } catch (error) {
+                showToast('上传失败：' + error.message, 'error');
+                reject(error);
+            }
+        });
     } catch (error) {
-        showToast('上传失败：网络错误', 'error');
+        showToast('上传失败：' + error.message, 'error');
     } finally {
         document.getElementById('fileInput').value = '';
     }
@@ -275,6 +350,18 @@ async function loadFiles() {
     }
 }
 
+// 转义 HTML 特殊字符
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 转义 JavaScript 字符串中的单引号
+function escapeJsString(str) {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+}
+
 // 显示文件列表
 function displayFiles(files) {
     const fileList = document.getElementById('fileList');
@@ -289,18 +376,25 @@ function displayFiles(files) {
         const fileSize = formatFileSize(file.size);
         const uploadTime = new Date(file.uploadTime).toLocaleString();
         const isSelected = selectedFiles.has(file.name);
+        
+        // 转义文件名用于 JavaScript 字符串
+        const escapedFileName = escapeJsString(file.name);
+        // 转义文件名用于 HTML 显示
+        const escapedFileNameHtml = escapeHtml(file.name);
+        // URL 编码的文件名用于 URL
+        const encodedFileName = encodeURIComponent(file.name);
 
         return `
-            <div class="file-item ${isSelected ? 'selected' : ''}" onclick="handleFileClick('${file.name}', ${file.isImage}, ${file.isVideo})">
-                <div class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection('${file.name}')">
-                    <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleFileSelection('${file.name}')">
+            <div class="file-item ${isSelected ? 'selected' : ''}" data-filename="${encodedFileName}" data-is-image="${file.isImage}" data-is-video="${file.isVideo}" data-is-text="${file.isText || false}" onclick="handleFileClickFromElement(this)">
+                <div class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection('${escapedFileName}')">
+                    <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleFileSelection('${escapedFileName}')">
                 </div>
                 <div class="file-item-header">
                     ${file.isImage || file.isVideo ? `
                         <div class="file-thumbnail">
                             ${file.isVideo ? `
                                 <video 
-                                    src="/uploads/${file.name}" 
+                                    src="/uploads/${encodedFileName}" 
                                     preload="metadata" 
                                     onloadedmetadata="this.currentTime=0.1"
                                     onerror="this.onerror=null; this.parentElement.innerHTML='${fileIcon}'">
@@ -309,7 +403,7 @@ function displayFiles(files) {
                                     <i class="fas fa-play-circle"></i>
                                 </div>
                             ` : `
-                                <img src="/uploads/${file.name}" alt="${file.name}" onerror="this.onerror=null; this.parentElement.innerHTML='${fileIcon}'">
+                                <img src="/uploads/${encodedFileName}" alt="${escapedFileNameHtml}" onerror="this.onerror=null; this.parentElement.innerHTML='${fileIcon}'">
                             `}
                         </div>
                     ` : `
@@ -317,23 +411,29 @@ function displayFiles(files) {
                     `}
                 </div>
                 <div class="file-item-body">
-                    <div class="file-name">${file.name}</div>
+                    <div class="file-name">${escapedFileNameHtml}</div>
                     <div class="file-info">
                         <div>大小: ${fileSize}</div>
                         <div>上传时间: ${uploadTime}</div>
                     </div>
                     <div class="file-actions">
-                        ${file.isImage ? `<button class="btn btn-preview" onclick="event.stopPropagation(); previewImage('${file.name}')">
-                            <i class="fas fa-eye"></i> 预览
+                        ${file.isImage ? `<button class="btn btn-preview" data-action="preview-image" data-filename="${encodedFileName}" onclick="event.stopPropagation(); previewImageFromButton(this)" title="预览">
+                            <i class="fas fa-eye"></i>
                         </button>` : ''}
-                        ${file.isVideo ? `<button class="btn btn-preview" onclick="event.stopPropagation(); previewVideo('${file.name}')">
-                            <i class="fas fa-play"></i> 播放
+                        ${file.isVideo ? `<button class="btn btn-preview" data-action="preview-video" data-filename="${encodedFileName}" onclick="event.stopPropagation(); previewVideoFromButton(this)" title="播放">
+                            <i class="fas fa-play"></i>
                         </button>` : ''}
-                        <button class="btn btn-download" onclick="event.stopPropagation(); downloadFile('${file.name}')">
-                            <i class="fas fa-download"></i> 下载
+                        ${file.isText ? `<button class="btn btn-edit" data-action="edit-text" data-filename="${encodedFileName}" onclick="event.stopPropagation(); editTextFileFromButton(this)" title="编辑文件">
+                            <i class="fas fa-edit"></i>
+                        </button>` : ''}
+                        <button class="btn btn-link" data-action="copy-link" data-filename="${encodedFileName}" onclick="event.stopPropagation(); copyFileLinkFromButton(this)" title="复制文件链接">
+                            <i class="fas fa-link"></i>
                         </button>
-                        <button class="btn btn-delete" onclick="event.stopPropagation(); deleteFile('${file.name}')">
-                            <i class="fas fa-trash"></i> 删除
+                        <button class="btn btn-download" data-action="download" data-filename="${encodedFileName}" onclick="event.stopPropagation(); downloadFileFromButton(this)" title="下载">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="btn btn-delete" data-action="delete" data-filename="${encodedFileName}" onclick="event.stopPropagation(); deleteFileFromButton(this)" title="删除">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </div>
@@ -385,13 +485,56 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// 处理文件点击
-function handleFileClick(filename, isImage, isVideo) {
+// 处理文件点击（从元素获取数据）
+function handleFileClickFromElement(element) {
+    const filename = decodeURIComponent(element.getAttribute('data-filename'));
+    const isImage = element.getAttribute('data-is-image') === 'true';
+    const isVideo = element.getAttribute('data-is-video') === 'true';
+    const isText = element.getAttribute('data-is-text') === 'true';
+    
     if (isImage) {
         previewImage(filename);
     } else if (isVideo) {
         previewVideo(filename);
+    } else if (isText) {
+        editTextFile(filename);
     }
+}
+
+// 从按钮获取文件名并预览图片
+function previewImageFromButton(button) {
+    const filename = decodeURIComponent(button.getAttribute('data-filename'));
+    previewImage(filename);
+}
+
+// 从按钮获取文件名并预览视频
+function previewVideoFromButton(button) {
+    const filename = decodeURIComponent(button.getAttribute('data-filename'));
+    previewVideo(filename);
+}
+
+// 从按钮获取文件名并编辑文本
+function editTextFileFromButton(button) {
+    const filename = decodeURIComponent(button.getAttribute('data-filename'));
+    editTextFile(filename);
+}
+
+// 从按钮获取文件名并复制链接
+function copyFileLinkFromButton(button) {
+    const filename = decodeURIComponent(button.getAttribute('data-filename'));
+    copyFileLink(filename);
+}
+
+// 从按钮获取文件名并下载
+function downloadFileFromButton(button) {
+    const filename = decodeURIComponent(button.getAttribute('data-filename'));
+    downloadFile(filename);
+}
+
+// 从按钮获取文件名并删除
+function deleteFileFromButton(button) {
+    const filename = decodeURIComponent(button.getAttribute('data-filename'));
+    deleteFile(filename);
 }
 
 // 预览图片
@@ -466,24 +609,80 @@ function previewVideo(filename) {
     }
 }
 
-// 下载文件
+// 下载文件（支持大文件和进度显示）
 async function downloadFile(filename) {
     try {
-        const response = await fetch(`/api/download/${filename}`);
+        // 先获取文件信息以判断大小
+        const file = currentFiles.find(f => f.name === filename);
+        const isLargeFile = file && file.size > 50 * 1024 * 1024; // 大于50MB
+        
+        if (isLargeFile) {
+            showToast(`开始下载 ${filename} (${formatFileSize(file.size)})...`, 'info');
+        }
+        
+        const response = await fetch(`/api/download/${encodeURIComponent(filename)}`, {
+            method: 'GET',
+            headers: accessPassword ? { 'x-access-password': accessPassword } : {}
+        });
+        
         if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            window.URL.revokeObjectURL(url);
+            const contentLength = response.headers.get('content-length');
+            const total = contentLength ? parseInt(contentLength, 10) : 0;
+            
+            if (isLargeFile && total > 0) {
+                // 大文件使用流式下载并显示进度
+                const reader = response.body.getReader();
+                const chunks = [];
+                let received = 0;
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    received += value.length;
+                    
+                    if (total > 0) {
+                        const percent = Math.round((received / total) * 100);
+                        if (percent % 10 === 0 || received === total) { // 每10%更新一次
+                            showToast(`下载进度: ${percent}% (${formatFileSize(received)}/${formatFileSize(total)})`, 'info');
+                        }
+                    }
+                }
+                
+                // 合并所有块
+                const blob = new Blob(chunks);
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                showToast('文件下载完成！', 'success');
+            } else {
+                // 小文件直接下载
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                if (!isLargeFile) {
+                    showToast('文件下载完成！', 'success');
+                }
+            }
         } else {
-            const result = await response.json();
-            showToast('下载失败：' + result.error, 'error');
+            // 尝试解析错误信息
+            try {
+                const result = await response.json();
+                showToast('下载失败：' + (result.error || '未知错误'), 'error');
+            } catch (e) {
+                showToast('下载失败：服务器错误', 'error');
+            }
         }
     } catch (error) {
-        showToast('下载失败：网络错误', 'error');
+        showToast('下载失败：' + error.message, 'error');
     }
 }
 
@@ -538,9 +737,14 @@ function showToast(message, type = 'info') {
 
 // 点击模态框外部关闭
 window.onclick = function(event) {
-    const modal = document.getElementById('imageModal');
-    if (event.target === modal) {
+    const imageModal = document.getElementById('imageModal');
+    const textEditorModal = document.getElementById('textEditorModal');
+    
+    if (event.target === imageModal) {
         closeImageModal();
+    }
+    if (event.target === textEditorModal) {
+        closeTextEditor();
     }
 }
 
@@ -755,15 +959,148 @@ function fallbackCopyText(text) {
     document.body.removeChild(textArea);
 }
 
+// 复制文件链接
+async function copyFileLink(filename) {
+    try {
+        // 获取当前页面的协议、主机和端口
+        const protocol = window.location.protocol; // http: 或 https:
+        const host = window.location.host; // 包含端口的主机名，如 "192.168.1.1:3000"
+        
+        // 构建文件的完整访问链接
+        const fileUrl = `${protocol}//${host}/uploads/${encodeURIComponent(filename)}`;
+        
+        // 复制到剪贴板
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(fileUrl);
+            showToast('文件链接已复制到剪贴板', 'success');
+        } else {
+            // 降级方案：使用传统的复制方法
+            fallbackCopyText(fileUrl);
+        }
+    } catch (error) {
+        console.error('复制文件链接失败:', error);
+        showToast('复制链接失败，请手动复制', 'error');
+    }
+}
+
+// 编辑文本文件
+async function editTextFile(filename) {
+    currentTextFile = filename;
+    const modal = document.getElementById('textEditorModal');
+    const title = document.getElementById('textEditorTitle');
+    const content = document.getElementById('textEditorContent');
+    const info = document.getElementById('textEditorInfo');
+    
+    title.textContent = `编辑: ${filename}`;
+    content.value = '';
+    info.textContent = '加载中...';
+    modal.style.display = 'block';
+    
+    try {
+        const headers = {};
+        if (accessPassword) {
+            headers['x-access-password'] = accessPassword;
+        }
+        
+        const response = await fetch(`/api/file-content/${encodeURIComponent(filename)}`, { headers });
+        const result = await response.json();
+        
+        if (response.ok) {
+            content.value = result.content;
+            const fileSize = formatFileSize(result.size);
+            info.textContent = `文件大小: ${fileSize}`;
+            content.focus();
+        } else if (response.status === 401) {
+            showToast('需要密码才能访问', 'error');
+            closeTextEditor();
+        } else {
+            showToast('加载文件失败：' + (result.error || '未知错误'), 'error');
+            closeTextEditor();
+        }
+    } catch (error) {
+        showToast('加载文件失败：网络错误', 'error');
+        closeTextEditor();
+    }
+}
+
+// 保存文本文件
+async function saveTextFile() {
+    if (!currentTextFile) return;
+    
+    const content = document.getElementById('textEditorContent');
+    const info = document.getElementById('textEditorInfo');
+    const saveBtn = document.querySelector('#textEditorModal .btn-save');
+    const originalText = saveBtn.innerHTML;
+    
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
+    info.textContent = '保存中...';
+    
+    try {
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (accessPassword) {
+            headers['x-access-password'] = accessPassword;
+        }
+        
+        const response = await fetch(`/api/file-content/${encodeURIComponent(currentTextFile)}`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({ content: content.value })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showToast('文件保存成功！', 'success');
+            const fileSize = formatFileSize(result.size);
+            info.textContent = `文件大小: ${fileSize} | 已保存`;
+            
+            // 更新文件列表
+            if (accessPassword) {
+                loadFilesWithPassword();
+            } else {
+                loadFiles();
+            }
+        } else if (response.status === 401) {
+            showToast('需要密码才能保存', 'error');
+        } else {
+            showToast('保存失败：' + (result.error || '未知错误'), 'error');
+        }
+    } catch (error) {
+        showToast('保存失败：网络错误', 'error');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    }
+}
+
+// 关闭文本编辑器
+function closeTextEditor() {
+    const modal = document.getElementById('textEditorModal');
+    modal.style.display = 'none';
+    currentTextFile = null;
+    document.getElementById('textEditorContent').value = '';
+    document.getElementById('textEditorInfo').textContent = '';
+}
+
 // 键盘事件
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         closeImageModal();
+        closeTextEditor();
     }
     
+    // Ctrl+S 保存（在文本编辑器中保存文件，否则保存共享文本）
     if (event.ctrlKey && event.key === 's') {
         event.preventDefault();
-        saveSharedText();
+        const textEditorModal = document.getElementById('textEditorModal');
+        if (textEditorModal.style.display === 'block') {
+            saveTextFile();
+        } else {
+            saveSharedText();
+        }
     }
 });
 

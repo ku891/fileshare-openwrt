@@ -8,6 +8,7 @@ local function getAccessURL()
     local uci = require("luci.model.uci").cursor()
     local use_domain_val = uci:get("fileshare", "config", "use_domain")
     local domain_name_val = uci:get("fileshare", "config", "domain_name") or "fileshare.lan"
+    local enable_https_val = uci:get("fileshare", "config", "enable_https") or "0"
     
     -- 获取端口配置
     local port_val = uci:get("fileshare", "config", "port") or "3000"
@@ -15,6 +16,15 @@ local function getAccessURL()
         port_val = port_val[1] or "3000"
     end
     port_val = tostring(port_val)
+    
+    -- 如果启用了 HTTPS，使用 HTTPS 端口
+    if enable_https_val == "1" then
+        local https_port_val = uci:get("fileshare", "config", "https_port") or "3443"
+        if type(https_port_val) == "table" then
+            https_port_val = https_port_val[1] or "3443"
+        end
+        port_val = tostring(https_port_val)
+    end
     
     -- 获取路由IP地址
     local ip = luci.sys.exec("uci get network.lan.ipaddr 2>/dev/null | head -1")
@@ -27,14 +37,17 @@ local function getAccessURL()
     ip = ip:gsub("%s+", "")
     ip = ip:match("^([^/]+)") or ip
     
+    -- 确定协议
+    local protocol = (enable_https_val == "1") and "https" or "http"
+    
     if use_domain_val == "1" and domain_name_val and domain_name_val ~= "" then
         local host = domain_name_val
         if not host:match("%.") then
             host = host .. ".lan"
         end
-        return "http://" .. host .. ":" .. port_val
+        return protocol .. "://" .. host .. ":" .. port_val
     else
-        return "http://" .. ip .. ":" .. port_val
+        return protocol .. "://" .. ip .. ":" .. port_val
     end
 end
 
@@ -82,10 +95,20 @@ function domain_name.validate(self, value, section)
     return value
 end
 
-port = s:option(Value, "port", translate("服务端口"), translate("服务监听的端口号（默认：3000）"))
+port = s:option(Value, "port", translate("HTTP服务端口"), translate("HTTP服务监听的端口号（默认：3000）"))
 port.datatype = "port"
 port.default = "3000"
 port.rmempty = false
+
+enable_https = s:option(Flag, "enable_https", translate("启用HTTPS"), translate("启用HTTPS加密访问，将自动生成自签名证书"))
+enable_https.default = "0"
+enable_https.rmempty = false
+
+https_port = s:option(Value, "https_port", translate("HTTPS服务端口"), translate("HTTPS服务监听的端口号（默认：3443）"))
+https_port.datatype = "port"
+https_port.default = "3443"
+https_port.rmempty = true
+https_port:depends("enable_https", "1")
 
 password = s:option(Value, "password", translate("访问密码"), translate("外网访问和未授权内网访问所需的密码"))
 password.password = true

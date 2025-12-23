@@ -120,6 +120,34 @@
         </div>
     </div>
 
+    <!-- 文本编辑器模态框 -->
+    <div class="modal" id="textEditorModal" style="display: none;">
+        <div class="modal-content" style="max-width: 90%; max-height: 90vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                <h3 id="textEditorTitle" style="margin: 0;">编辑文件</h3>
+                <span class="close" onclick="closeTextEditor()" style="font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                <textarea 
+                    id="textEditorContent" 
+                    style="flex: 1; width: 100%; padding: 15px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 14px; resize: none; min-height: 400px; box-sizing: border-box;"
+                    spellcheck="false"
+                ></textarea>
+                <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <div id="textEditorInfo" style="color: #666; font-size: 12px;"></div>
+                    <div>
+                        <button onclick="saveTextFile()" class="btn btn-save" style="background: #28a745; color: white; padding: 8px 20px; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+                            <i class="fas fa-save"></i> 保存
+                        </button>
+                        <button onclick="closeTextEditor()" class="btn" style="background: #6c757d; color: white; padding: 8px 20px; border: none; border-radius: 5px; cursor: pointer;">
+                            取消
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 消息提示 -->
     <div class="toast" id="toast"></div>
 

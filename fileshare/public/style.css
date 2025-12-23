@@ -389,12 +389,16 @@ header p {
 }
 
 .btn {
-    padding: 6px 12px;
+    padding: 6px 10px;
     border: none;
     border-radius: 15px;
     cursor: pointer;
     font-size: 0.8rem;
     transition: all 0.2s ease;
+    min-width: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-download {
@@ -422,6 +426,24 @@ header p {
 
 .btn-preview:hover {
     background: #218838;
+}
+
+.btn-link {
+    background: #6f42c1;
+    color: white;
+}
+
+.btn-link:hover {
+    background: #5a32a3;
+}
+
+.btn-edit {
+    background: #ffc107;
+    color: #000;
+}
+
+.btn-edit:hover {
+    background: #e0a800;
 }
 
 .loading {
