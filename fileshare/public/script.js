@@ -213,17 +213,9 @@ function setupFileUpload() {
     });
 }
 
-// 上传文件（带进度显示）
+// 上传文件
 async function uploadFiles(files) {
     if (files.length === 0) return;
-
-    // 显示上传进度提示
-    const totalSize = Array.from(files).reduce((sum, file) => sum + file.size, 0);
-    const isLargeFile = totalSize > 50 * 1024 * 1024; // 大于50MB显示进度
-    
-    if (isLargeFile) {
-        showToast(`开始上传 ${files.length} 个文件（${formatFileSize(totalSize)}）...`, 'info');
-    }
 
     const formData = new FormData();
     for (let file of files) {
@@ -236,95 +228,29 @@ async function uploadFiles(files) {
             headers['x-access-password'] = accessPassword;
         }
         
-        // 使用 XMLHttpRequest 以支持上传进度
-        const xhr = new XMLHttpRequest();
-        let lastProgressUpdate = 0;
-        let lastPercent = -1;
-        
-        return new Promise((resolve, reject) => {
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable && isLargeFile) {
-                    const now = Date.now();
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    
-                    // 限制更新频率：每2秒更新一次，或者进度变化超过5%
-                    if (now - lastProgressUpdate > 2000 || Math.abs(percent - lastPercent) >= 5) {
-                        showToast(`上传进度: ${percent}% (${formatFileSize(e.loaded)}/${formatFileSize(e.total)})`, 'info');
-                        lastProgressUpdate = now;
-                        lastPercent = percent;
-                    }
-                }
-            });
-            
-            xhr.addEventListener('load', () => {
-                if (xhr.status === 200) {
-                    try {
-                        const result = JSON.parse(xhr.responseText);
-                        showToast('文件上传成功！', 'success');
-                        if (accessPassword) {
-                            loadFilesWithPassword();
-                        } else {
-                            loadFiles();
-                        }
-                        resolve(result);
-                    } catch (e) {
-                        showToast('上传成功，但解析响应失败', 'warning');
-                        if (accessPassword) {
-                            loadFilesWithPassword();
-                        } else {
-                            loadFiles();
-                        }
-                        resolve();
-                    }
-                } else if (xhr.status === 401) {
-                    showToast('需要密码才能上传', 'error');
-                    document.getElementById('passwordScreen').style.display = 'block';
-                    reject(new Error('需要密码'));
-                } else {
-                    try {
-                        const result = JSON.parse(xhr.responseText);
-                        showToast('上传失败：' + (result.error || '未知错误'), 'error');
-                    } catch (e) {
-                        showToast('上传失败：服务器错误', 'error');
-                    }
-                    reject(new Error('上传失败'));
-                }
-            });
-            
-            xhr.addEventListener('error', () => {
-                showToast('上传失败：网络错误', 'error');
-                reject(new Error('网络错误'));
-            });
-            
-            xhr.addEventListener('timeout', () => {
-                showToast('上传超时，请重试', 'error');
-                reject(new Error('上传超时'));
-            });
-            
-            xhr.addEventListener('abort', () => {
-                showToast('上传已取消', 'warning');
-                reject(new Error('上传已取消'));
-            });
-            
-            xhr.open('POST', '/api/upload');
-            if (accessPassword) {
-                xhr.setRequestHeader('x-access-password', accessPassword);
-            }
-            // 增加超时时间到30分钟（大文件需要更长时间）
-            xhr.timeout = 30 * 60 * 1000; // 30分钟
-            // 禁用自动重定向
-            xhr.responseType = 'text';
-            
-            // 发送请求
-            try {
-                xhr.send(formData);
-            } catch (error) {
-                showToast('上传失败：' + error.message, 'error');
-                reject(error);
-            }
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            headers: headers,
+            body: formData
         });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showToast('文件上传成功！', 'success');
+            if (accessPassword) {
+                loadFilesWithPassword();
+            } else {
+                loadFiles();
+            }
+        } else if (response.status === 401) {
+            showToast('需要密码才能上传', 'error');
+            document.getElementById('passwordScreen').style.display = 'block';
+        } else {
+            showToast('上传失败：' + result.error, 'error');
+        }
     } catch (error) {
-        showToast('上传失败：' + error.message, 'error');
+        showToast('上传失败：网络错误', 'error');
     } finally {
         document.getElementById('fileInput').value = '';
     }
@@ -417,23 +343,23 @@ function displayFiles(files) {
                         <div>上传时间: ${uploadTime}</div>
                     </div>
                     <div class="file-actions">
-                        ${file.isImage ? `<button class="btn btn-preview" data-action="preview-image" data-filename="${encodedFileName}" onclick="event.stopPropagation(); previewImageFromButton(this)" title="预览">
-                            <i class="fas fa-eye"></i>
+                        ${file.isImage ? `<button class="btn btn-preview" data-action="preview-image" data-filename="${encodedFileName}" onclick="event.stopPropagation(); previewImageFromButton(this)">
+                            <i class="fas fa-eye"></i><span class="btn-text"> 预览</span>
                         </button>` : ''}
-                        ${file.isVideo ? `<button class="btn btn-preview" data-action="preview-video" data-filename="${encodedFileName}" onclick="event.stopPropagation(); previewVideoFromButton(this)" title="播放">
-                            <i class="fas fa-play"></i>
+                        ${file.isVideo ? `<button class="btn btn-preview" data-action="preview-video" data-filename="${encodedFileName}" onclick="event.stopPropagation(); previewVideoFromButton(this)">
+                            <i class="fas fa-play"></i><span class="btn-text"> 播放</span>
                         </button>` : ''}
                         ${file.isText ? `<button class="btn btn-edit" data-action="edit-text" data-filename="${encodedFileName}" onclick="event.stopPropagation(); editTextFileFromButton(this)" title="编辑文件">
-                            <i class="fas fa-edit"></i>
+                            <i class="fas fa-edit"></i><span class="btn-text"> 编辑</span>
                         </button>` : ''}
                         <button class="btn btn-link" data-action="copy-link" data-filename="${encodedFileName}" onclick="event.stopPropagation(); copyFileLinkFromButton(this)" title="复制文件链接">
-                            <i class="fas fa-link"></i>
+                            <i class="fas fa-link"></i><span class="btn-text"> 复制链接</span>
                         </button>
-                        <button class="btn btn-download" data-action="download" data-filename="${encodedFileName}" onclick="event.stopPropagation(); downloadFileFromButton(this)" title="下载">
-                            <i class="fas fa-download"></i>
+                        <button class="btn btn-download" data-action="download" data-filename="${encodedFileName}" onclick="event.stopPropagation(); downloadFileFromButton(this)">
+                            <i class="fas fa-download"></i><span class="btn-text"> 下载</span>
                         </button>
-                        <button class="btn btn-delete" data-action="delete" data-filename="${encodedFileName}" onclick="event.stopPropagation(); deleteFileFromButton(this)" title="删除">
-                            <i class="fas fa-trash"></i>
+                        <button class="btn btn-delete" data-action="delete" data-filename="${encodedFileName}" onclick="event.stopPropagation(); deleteFileFromButton(this)">
+                            <i class="fas fa-trash"></i><span class="btn-text"> 删除</span>
                         </button>
                     </div>
                 </div>
@@ -609,80 +535,24 @@ function previewVideo(filename) {
     }
 }
 
-// 下载文件（支持大文件和进度显示）
+// 下载文件
 async function downloadFile(filename) {
     try {
-        // 先获取文件信息以判断大小
-        const file = currentFiles.find(f => f.name === filename);
-        const isLargeFile = file && file.size > 50 * 1024 * 1024; // 大于50MB
-        
-        if (isLargeFile) {
-            showToast(`开始下载 ${filename} (${formatFileSize(file.size)})...`, 'info');
-        }
-        
-        const response = await fetch(`/api/download/${encodeURIComponent(filename)}`, {
-            method: 'GET',
-            headers: accessPassword ? { 'x-access-password': accessPassword } : {}
-        });
-        
+        const response = await fetch(`/api/download/${filename}`);
         if (response.ok) {
-            const contentLength = response.headers.get('content-length');
-            const total = contentLength ? parseInt(contentLength, 10) : 0;
-            
-            if (isLargeFile && total > 0) {
-                // 大文件使用流式下载并显示进度
-                const reader = response.body.getReader();
-                const chunks = [];
-                let received = 0;
-                
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    
-                    chunks.push(value);
-                    received += value.length;
-                    
-                    if (total > 0) {
-                        const percent = Math.round((received / total) * 100);
-                        if (percent % 10 === 0 || received === total) { // 每10%更新一次
-                            showToast(`下载进度: ${percent}% (${formatFileSize(received)}/${formatFileSize(total)})`, 'info');
-                        }
-                    }
-                }
-                
-                // 合并所有块
-                const blob = new Blob(chunks);
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.click();
-                window.URL.revokeObjectURL(url);
-                showToast('文件下载完成！', 'success');
-            } else {
-                // 小文件直接下载
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.click();
-                window.URL.revokeObjectURL(url);
-                if (!isLargeFile) {
-                    showToast('文件下载完成！', 'success');
-                }
-            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
         } else {
-            // 尝试解析错误信息
-            try {
-                const result = await response.json();
-                showToast('下载失败：' + (result.error || '未知错误'), 'error');
-            } catch (e) {
-                showToast('下载失败：服务器错误', 'error');
-            }
+            const result = await response.json();
+            showToast('下载失败：' + result.error, 'error');
         }
     } catch (error) {
-        showToast('下载失败：' + error.message, 'error');
+        showToast('下载失败：网络错误', 'error');
     }
 }
 

@@ -98,7 +98,7 @@ opkg install /tmp/luci-app-fileshare_*.ipk
 
 1. 登录 LuCI 管理界面
 2. 导航到：**服务** → **内网共享**
-3. 配置端口、密码和允许的主机
+3. 配置端口、密码、允许的主机、是否启用 HTTPS、HTTPS 端口、域名
 4. 启用服务并保存
 
 #### 使用命令行
@@ -121,10 +121,31 @@ vi /etc/config/fileshare
 ```
 config fileshare 'config'
     option enabled '1'              # 是否启用服务
-    option port '3000'              # 服务端口
-    option password '123456'         # 访问密码
-    option allowed_hosts '192.168.1.1'  # 允许免密码访问的主机
+    option port '3000'              # HTTP 服务端口
+    option https_port '3443'        # HTTPS 服务端口
+    option enable_https '0'         # 是否启用 HTTPS（自动生成自签名证书）
+    option password '123456'        # 访问密码
+    option allowed_hosts '192.168.1.1'  # 免密码访问的主机（内网）
+    option use_domain '0'           # 是否启用本地域名
+    option domain_name 'fileshare.lan' # 本地域名
 ```
+
+## 🔧 功能特性
+
+- ✅ 文件上传、下载（单文件上限 10GB）
+- ✅ 图片预览 / 视频播放
+- ✅ 文本共享与文本文件在线编辑
+- ✅ 密码保护、外网强制密码验证
+- ✅ 内网免密码访问（可配置）
+- ✅ 密码错误锁定保护
+- ✅ HTTPS 自签名证书自动生成，域名变化自动重新生成
+- ✅ 支持中文/特殊字符文件名
+
+## ⚠️ 已知注意事项
+
+- 下载接口默认未做鉴权，如需严格保护请在 `/api/download/:filename` 加 `checkPassword`
+- 允许免密的主机校验若依赖请求头可能被伪造，建议基于源 IP 严格匹配
+- 大文件上传前请确认设备存储空间与网络超时，超大文件建议分片/断点续传
 
 ## 🔧 功能特性
 
@@ -136,10 +157,7 @@ config fileshare 'config'
 - ✅ 内网免密码访问（可配置）
 - ✅ 外网强制密码验证
 - ✅ 密码错误锁定保护
-- ✅ 文本文件编辑
-- ✅ 文件链接
-- ✅ https  外网访问你需要手动申请证书, 替换源证书/usr/lib/fileshare/certs/ 文件名保持一致 端口映射
-- ✅ 本地域名
+
 ## 📄 许可证
 
 MIT License

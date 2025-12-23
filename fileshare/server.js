@@ -226,13 +226,17 @@ subjectAltName=${san}`;
       
       try {
         execSync(certCmdWithConfig, { stdio: 'ignore', shell: '/bin/sh' });
+        // 删除临时配置文件
         fs.removeSync(configFile);
+        console.log(`证书已生成: CN=${cn}, SAN=${san}`);
         return true;
       } catch (certError) {
         // 如果带扩展的命令失败，尝试不带扩展的简单版本
         const simpleCertCmd = `${opensslCmd} req -new -x509 -key "${keyFile}" -out "${certFile}" -days 3650 -subj "/CN=${cn}/O=FileShare/C=CN" 2>/dev/null`;
         execSync(simpleCertCmd, { stdio: 'ignore', shell: '/bin/sh' });
         fs.removeSync(configFile);
+        console.log(`证书已生成（简化版，无SAN扩展）: CN=${cn}`);
+        console.warn('注意：证书可能不包含所有域名/IP，某些浏览器可能显示警告');
         return true;
       }
     } catch (error) {
@@ -280,6 +284,7 @@ function hasDomainChanged() {
     
     // 比较域名是否变化
     if (savedData.domain !== currentDomain) {
+      console.log(`域名已变化: ${savedData.domain} -> ${currentDomain}`);
       return true;
     }
     
@@ -312,19 +317,22 @@ function saveCertInfo() {
  * 删除旧证书
  */
 function removeOldCertificates() {
-    try {
-      if (fs.existsSync(certFile)) {
-        fs.removeSync(certFile);
-      }
-      if (fs.existsSync(keyFile)) {
-        fs.removeSync(keyFile);
-      }
-      if (fs.existsSync(certInfoFile)) {
-        fs.removeSync(certInfoFile);
-      }
-    } catch (error) {
-      // 静默处理删除错误
+  try {
+    if (fs.existsSync(certFile)) {
+      fs.removeSync(certFile);
+      console.log('已删除旧证书文件');
     }
+    if (fs.existsSync(keyFile)) {
+      fs.removeSync(keyFile);
+      console.log('已删除旧私钥文件');
+    }
+    if (fs.existsSync(certInfoFile)) {
+      fs.removeSync(certInfoFile);
+      console.log('已删除旧证书信息文件');
+    }
+  } catch (error) {
+    console.warn('删除旧证书文件失败:', error.message);
+  }
 }
 
 /**
@@ -343,6 +351,11 @@ function loadOrGenerateCertificate() {
   
   // 如果域名变化或证书不存在，删除旧证书并重新生成
   if (domainChanged || !certExists) {
+    if (domainChanged) {
+      console.log('检测到域名变化，删除旧证书并重新生成...');
+    } else {
+      console.log('证书文件不存在，生成新证书...');
+    }
     removeOldCertificates();
   } else {
     // 证书存在且域名未变化，尝试使用现有证书
@@ -350,17 +363,20 @@ function loadOrGenerateCertificate() {
       const cert = fs.readFileSync(certFile);
       const key = fs.readFileSync(keyFile);
       if (cert.length > 0 && key.length > 0) {
+        console.log('使用现有证书');
         return {
           cert: cert,
           key: key
         };
       }
     } catch (error) {
+      console.warn('读取现有证书失败，将重新生成:', error.message);
       removeOldCertificates();
     }
   }
   
   // 生成新证书
+  console.log('正在生成新的自签名证书...');
   if (generateCertificate()) {
     try {
       // 保存证书信息
@@ -424,17 +440,7 @@ fs.ensureDirSync(publicDir);
 // 中间件
 app.set('trust proxy', true); // 信任代理，正确获取客户端 IP
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // JSON 限制，大文件通过 FormData 上传
-// 增加请求体大小限制（用于大文件上传）
-app.use(express.urlencoded({ extended: true, limit: '500GB' }));
-
-// 增加服务器超时设置（大文件上传需要更长时间）
-app.use((req, res, next) => {
-  // 设置请求超时为30分钟（大文件上传需要）
-  req.setTimeout(30 * 60 * 1000);
-  res.setTimeout(30 * 60 * 1000);
-  next();
-});
+app.use(express.json());
 
 // 根路径路由（必须在静态文件服务之前）
 app.get('/', (req, res) => {
@@ -546,23 +552,20 @@ function checkPassword(req, res, next) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
+    // 处理中文/特殊字符文件名：multer 默认按 latin1，需要转成 utf-8
+    const originalNameUtf8 = Buffer.from(file.originalname, 'latin1').toString('utf8');
     const timestamp = Date.now();
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
+    const ext = path.extname(originalNameUtf8);
+    const name = path.basename(originalNameUtf8, ext);
     cb(null, `${name}_${timestamp}${ext}`);
   }
 });
 
 const upload = multer({ 
   storage,
-  limits: { 
-    fileSize: 500 * 1024 * 1024 * 1024, // 500GB
-    fieldSize: 10 * 1024 * 1024, // 10MB 字段大小
-    files: 20 // 最多20个文件
-  },
-  fileFilter: (req, file, cb) => cb(null, true),
-  // 优化大文件上传性能
-  preservePath: false
+  // 单文件大小上限：10GB
+  limits: { fileSize: 10 * 1024 * 1024 * 1024 }, // 10GB
+  fileFilter: (req, file, cb) => cb(null, true)
 });
 
 // 获取文件列表
@@ -592,108 +595,31 @@ app.get('/api/files', checkPassword, async (req, res) => {
   }
 });
 
-// 文件上传（增加超时和错误处理）
-app.post('/api/upload', checkPassword, (req, res) => {
-  // 设置响应超时
-  res.setTimeout(30 * 60 * 1000, () => {
-    if (!res.headersSent) {
-      res.status(408).json({ error: '上传超时，请重试' });
-    }
-  });
-  
-  // 使用 multer 处理上传
-  upload.array('files', 10)(req, res, (err) => {
-    if (err) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: '文件过大，最大支持500GB' });
-      } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-        return res.status(400).json({ error: '文件数量过多，最多20个文件' });
-      } else {
-        console.error('上传错误:', err);
-        return res.status(500).json({ error: '文件上传失败: ' + err.message });
-      }
+// 文件上传
+app.post('/api/upload', checkPassword, upload.array('files', 10), (req, res) => {
+  try {
+    if (!req.files?.length) {
+      return res.status(400).json({ error: '没有文件被上传' });
     }
     
-    try {
-      if (!req.files?.length) {
-        return res.status(400).json({ error: '没有文件被上传' });
-      }
-      
-      const uploadedFiles = req.files.map(file => ({
-        name: file.filename,
-        originalName: file.originalname,
-        size: file.size
-      }));
-      
-      res.json({ message: '文件上传成功', files: uploadedFiles });
-    } catch (error) {
-      console.error('处理上传文件错误:', error);
-      res.status(500).json({ error: '文件上传失败: ' + error.message });
-    }
-  });
+    const uploadedFiles = req.files.map(file => ({
+      name: file.filename,
+      originalName: file.originalname,
+      size: file.size
+    }));
+    
+    res.json({ message: '文件上传成功', files: uploadedFiles });
+  } catch (error) {
+    res.status(500).json({ error: '文件上传失败' });
+  }
 });
 
-// 文件下载（支持 Range 请求，断点续传）
-app.get('/api/download/:filename', async (req, res) => {
-  try {
-    const filename = decodeURIComponent(req.params.filename);
-    const filePath = path.join(uploadDir, filename);
-    
-    // 安全检查
-    if (!filePath.startsWith(uploadDir)) {
-      return res.status(400).json({ error: '无效的文件路径' });
-    }
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: '文件不存在' });
-    }
-    
-    const stats = await fs.stat(filePath);
-    const fileSize = stats.size;
-    const range = req.headers.range;
-    
-    if (range) {
-      // 支持 Range 请求（断点续传）
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunksize = (end - start) + 1;
-      const file = fs.createReadStream(filePath, { start, end });
-      
-      const head = {
-        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': chunksize,
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-      };
-      
-      res.writeHead(206, head);
-      file.pipe(res);
-    } else {
-      // 普通下载，使用流式传输
-      const head = {
-        'Content-Length': fileSize,
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-        'Accept-Ranges': 'bytes',
-      };
-      
-      res.writeHead(200, head);
-      const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
-      
-      fileStream.on('error', (err) => {
-        if (!res.headersSent) {
-          res.status(500).json({ error: '文件读取失败' });
-        }
-      });
-    }
-  } catch (error) {
-    if (!res.headersSent) {
-      res.status(500).json({ error: '下载失败: ' + error.message });
-    }
-  }
+// 文件下载
+app.get('/api/download/:filename', (req, res) => {
+  const filePath = path.join(uploadDir, req.params.filename);
+  res.download(filePath, req.params.filename, (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: '文件不存在' });
+  });
 });
 
 // 删除文件
@@ -809,10 +735,7 @@ if (ENABLE_HTTPS) {
   const certOptions = loadOrGenerateCertificate();
   if (certOptions) {
     // 启动 HTTPS 服务器
-    const httpsServer = https.createServer(certOptions, app);
-    httpsServer.timeout = 30 * 60 * 1000; // 30分钟超时
-    httpsServer.keepAliveTimeout = 30 * 60 * 1000; // 保持连接30分钟
-    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+    https.createServer(certOptions, app).listen(HTTPS_PORT, '0.0.0.0', () => {
       console.log(`文件共享服务器运行在 https://0.0.0.0:${HTTPS_PORT}`);
     });
     
@@ -820,33 +743,26 @@ if (ENABLE_HTTPS) {
     if (PORT !== HTTPS_PORT) {
       // HTTP 服务器重定向到 HTTPS
       const http = require('http');
-      const httpServer = http.createServer((req, res) => {
+      http.createServer((req, res) => {
         const host = req.headers.host || '';
         const hostname = host.split(':')[0];
         const httpsUrl = `https://${hostname}:${HTTPS_PORT}${req.url}`;
         res.writeHead(301, { 'Location': httpsUrl });
         res.end();
-      });
-      httpServer.timeout = 30 * 60 * 1000;
-      httpServer.keepAliveTimeout = 30 * 60 * 1000;
-      httpServer.listen(PORT, '0.0.0.0', () => {
+      }).listen(PORT, '0.0.0.0', () => {
         console.log(`HTTP 重定向服务器运行在 http://0.0.0.0:${PORT} (重定向到 HTTPS)`);
       });
     }
   } else {
     console.error('无法加载证书，HTTPS 启动失败，回退到 HTTP');
-    const httpServer = app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`文件共享服务器运行在 http://0.0.0.0:${PORT}`);
     });
-    httpServer.timeout = 30 * 60 * 1000;
-    httpServer.keepAliveTimeout = 30 * 60 * 1000;
   }
 } else {
   // 仅启动 HTTP 服务器
-  const httpServer = app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`文件共享服务器运行在 http://0.0.0.0:${PORT}`);
   });
-  httpServer.timeout = 30 * 60 * 1000;
-  httpServer.keepAliveTimeout = 30 * 60 * 1000;
 }
 

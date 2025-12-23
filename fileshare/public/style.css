@@ -389,16 +389,12 @@ header p {
 }
 
 .btn {
-    padding: 6px 10px;
+    padding: 6px 12px;
     border: none;
     border-radius: 15px;
     cursor: pointer;
     font-size: 0.8rem;
     transition: all 0.2s ease;
-    min-width: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .btn-download {
@@ -444,6 +440,18 @@ header p {
 
 .btn-edit:hover {
     background: #e0a800;
+}
+
+.btn .btn-text {
+    margin-left: 6px;
+    display: inline-block;
+}
+
+@media (min-width: 768px) {
+    /* 桌面端隐藏文字，仅显示图标；移动端保持原状 */
+    .btn .btn-text {
+        display: none;
+    }
 }
 
 .loading {

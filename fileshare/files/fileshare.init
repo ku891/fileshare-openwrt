@@ -8,6 +8,44 @@ STOP=10
 USE_PROCD=1
 
 SERVICE_DIR=/usr/lib/fileshare
+NODE_BIN=/usr/bin/node
+NPM_BIN=/usr/bin/npm
+
+log_fs() {
+    logger -t fileshare "$@"
+}
+
+ensure_openssl() {
+    command -v openssl >/dev/null 2>&1 && return 0
+    opkg list-installed | grep -q "^openssl-util" && return 0
+
+    log_fs "警告: openssl 未安装，尝试安装 openssl-util 包..."
+    opkg update 2>&1 | log_fs
+
+    if opkg install openssl-util 2>&1 | log_fs; then
+        log_fs "openssl-util 安装成功"
+    else
+        log_fs "错误: 无法安装 openssl-util，请手动运行: opkg update && opkg install openssl-util"
+        # 如需强制依赖 openssl，请取消下一行注释
+        # return 1
+    fi
+}
+
+ensure_node_env() {
+    [ -x "$NODE_BIN" ] || { log_fs "错误: Node.js 未安装，请运行: opkg install node"; return 1; }
+    [ -f "$SERVICE_DIR/server.js" ] || { log_fs "错误: server.js 不存在于 $SERVICE_DIR"; return 1; }
+
+    if [ ! -d "$SERVICE_DIR/node_modules" ]; then
+        log_fs "警告: node_modules 不存在，尝试安装依赖..."
+        if [ -x "$NPM_BIN" ] && [ -f "$SERVICE_DIR/package.json" ]; then
+            (cd "$SERVICE_DIR" && "$NPM_BIN" install --production --no-save 2>&1 | log_fs) || \
+                { log_fs "错误: npm install 失败"; return 1; }
+        else
+            log_fs "错误: npm 未安装或 package.json 不存在"
+            return 1
+        fi
+    fi
+}
 
 start_service() {
     . /lib/functions.sh
@@ -17,60 +55,14 @@ start_service() {
     config_get_bool enabled config enabled 1
     [ "$enabled" = "0" ] && return 0
     
-    # 检查并安装 openssl-util（如果未安装）
-    local openssl_installed=0
-    if command -v openssl >/dev/null 2>&1; then
-        openssl_installed=1
-    elif opkg list-installed | grep -q "^openssl-util"; then
-        openssl_installed=1
-    fi
-    
-    if [ "$openssl_installed" = "0" ]; then
-        logger -t fileshare "警告: openssl 未安装，尝试安装 openssl-util 包..."
-        
-        # 更新包列表
-        opkg update 2>&1 | logger -t fileshare
-        
-        # 安装 openssl-util
-        if opkg install openssl-util 2>&1 | logger -t fileshare; then
-            if [ $? -eq 0 ]; then
-                logger -t fileshare "openssl-util 安装成功"
-            else
-                logger -t fileshare "错误: openssl-util 安装失败，但继续启动服务..."
-            fi
-        else
-            logger -t fileshare "错误: 无法安装 openssl-util，请手动运行: opkg update && opkg install openssl-util"
-            # 这里可以选择不返回错误，因为openssl可能不是必需的
-            # 根据实际需求决定是否注释掉下一行
-            # return 1
-        fi
-    fi
-    
-    if [ ! -x "/usr/bin/node" ]; then
-        logger -t fileshare "错误: Node.js 未安装，请运行: opkg install node"
-        return 1
-    fi
-    
-    if [ ! -f "$SERVICE_DIR/server.js" ]; then
-        logger -t fileshare "错误: server.js 不存在于 $SERVICE_DIR"
-        return 1
-    fi
-    
-    if [ ! -d "$SERVICE_DIR/node_modules" ]; then
-        logger -t fileshare "警告: node_modules 不存在，尝试安装依赖..."
-        if [ -x "/usr/bin/npm" ] && [ -f "$SERVICE_DIR/package.json" ]; then
-            cd "$SERVICE_DIR" && npm install --production --no-save 2>&1 | logger -t fileshare
-        else
-            logger -t fileshare "错误: npm 未安装或 package.json 不存在"
-            return 1
-        fi
-    fi
+    ensure_openssl || return 1
+    ensure_node_env || return 1
     
     # server.js 会直接从 /etc/config/fileshare 读取配置，无需通过环境变量传递
-    logger -t fileshare "启动服务（配置将从 /etc/config/fileshare 读取）"
+    log_fs "启动服务（配置将从 /etc/config/fileshare 读取）"
     
     procd_open_instance
-    procd_set_param command /usr/bin/node "$SERVICE_DIR/server.js"
+    procd_set_param command "$NODE_BIN" "$SERVICE_DIR/server.js"
     procd_set_param env NODE_ENV="production"
     procd_set_param cwd "$SERVICE_DIR"
     procd_set_param stdout 1
@@ -80,7 +72,7 @@ start_service() {
     procd_set_param respawn_timeout 10
     procd_close_instance
     
-    logger -t fileshare "服务已启动"
+    log_fs "服务已启动"
 }
 
 reload_service() {
