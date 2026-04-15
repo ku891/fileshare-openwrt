@@ -43,7 +43,7 @@ vi feeds.conf.default
 添加以下行（将 URL 替换为您的 GitHub 仓库地址）：
 
 ```
-src-git fileshare https://github.com/yourusername/fileshare-openwrt.git
+src-git fileshare https://github.com/yourusername/fileshare-openwrt.git;main
 ```
 
 ### 第三步：更新和安装 Feeds
