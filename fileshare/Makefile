@@ -1,18 +1,13 @@
 #
 # fileshare — Go 实现，不依赖 Node.js
+# 源码随 feed 分支 go-v2.0 提供，无需 PKG_SOURCE 二次下载
 #
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fileshare
 PKG_VERSION:=2.0.0
-PKG_RELEASE:=1
-
-PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/ku891/fileshare-openwrt.git
-PKG_SOURCE_VERSION:=c07efca94f871d3f7b0076c40a15fe922a977965
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_MIRROR_HASH:=skip
+PKG_RELEASE:=2
 
 PKG_MAINTAINER:=ku891
 PKG_LICENSE:=MIT
@@ -20,9 +15,6 @@ PKG_LICENSE:=MIT
 PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
 PKG_BUILD_FLAGS:=no-mips16
-
-# go.mod 位于 fileshare/ 子目录，指向它作为构建目录
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_SOURCE_SUBDIR)/fileshare
 
 GO_PKG:=github.com/ku891/fileshare
 GO_PKG_BUILD_PKG:=$(GO_PKG)
@@ -50,9 +42,9 @@ define Package/fileshare/install
 	$(INSTALL_DIR) $(1)/usr/lib/fileshare/uploads
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/config
-	$(CP) $(PKG_BUILD_DIR)/public/. $(1)/usr/lib/fileshare/public/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/fileshare.init $(1)/etc/init.d/fileshare
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/files/fileshare.config $(1)/etc/config/fileshare
+	$(CP) $(CURDIR)/public/. $(1)/usr/lib/fileshare/public/
+	$(INSTALL_BIN) $(CURDIR)/files/fileshare.init $(1)/etc/init.d/fileshare
+	$(INSTALL_CONF) $(CURDIR)/files/fileshare.config $(1)/etc/config/fileshare
 endef
 
 $(eval $(call GoBinPackage,fileshare))
