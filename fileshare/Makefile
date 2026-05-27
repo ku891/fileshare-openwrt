@@ -1,13 +1,13 @@
 #
 # fileshare — Go 实现，不依赖 Node.js
-# 源码随 feed 分支 go-v2.0 提供，无需 PKG_SOURCE 二次下载
+# 本地 feed：PKG_BUILD_DIR 指向源码目录（含 go.mod）
 #
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fileshare
 PKG_VERSION:=2.0.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_MAINTAINER:=ku891
 PKG_LICENSE:=MIT
@@ -15,6 +15,9 @@ PKG_LICENSE:=MIT
 PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
 PKG_BUILD_FLAGS:=no-mips16
+
+# 覆盖构建目录为当前包目录（含 go.mod，无需 PKG_SOURCE 下载）
+PKG_BUILD_DIR:=$(CURDIR)
 
 GO_PKG:=github.com/ku891/fileshare
 GO_PKG_BUILD_PKG:=$(GO_PKG)
