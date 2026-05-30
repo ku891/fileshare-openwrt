@@ -11,33 +11,49 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  IMMORTALWRT_VERSION: 24.10.6
+  SDK_URL: https://downloads.immortalwrt.org/releases/24.10.6/targets/x86/64/immortalwrt-sdk-24.10.6-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+
 jobs:
   build:
-    name: ImmortalWrt 24.10 ${{ matrix.arch }}
+    name: ImmortalWrt ${{ env.IMMORTALWRT_VERSION }} x86_64
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch:
-          - x86_64-24.10.6
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Build packages
-        uses: immortalwrt/gh-action-sdk@master
-        env:
-          ARCH: ${{ matrix.arch }}
-          PACKAGES: fileshare luci-app-fileshare
-          NO_SHFMT_CHECK: 1
-          V: s
+      - name: Download ImmortalWrt SDK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zstd wget
+          wget -q --show-progress -O sdk.tar.zst "$SDK_URL"
+          tar -I zstd -xf sdk.tar.zst
+          SDK_DIR="$(find "$PWD" -maxdepth 1 -type d -name 'immortalwrt-sdk*' | head -1)"
+          echo "SDK_DIR=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "Using SDK: $SDK_DIR"
+
+      - name: Install feeds and compile
+        run: |
+          cd "$SDK_DIR"
+          echo "src-link fileshare ${GITHUB_WORKSPACE}" >> feeds.conf
+          ./scripts/feeds update -a
+          ./scripts/feeds install -p fileshare fileshare luci-app-fileshare
+          make defconfig
+          make package/fileshare/compile V=s -j"$(nproc)" \
+            || make package/fileshare/compile V=s -j1
+          make package/luci-app-fileshare/compile V=s -j"$(nproc)" \
+            || make package/luci-app-fileshare/compile V=s -j1
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          find bin/packages -name 'fileshare_*.ipk' -o -name 'luci-app-fileshare_*.ipk' \
+            | xargs -I{} cp {} "$GITHUB_WORKSPACE/artifacts/"
+          ls -la "$GITHUB_WORKSPACE/artifacts/"
 
       - name: Upload IPK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: immortalwrt-24.10-${{ matrix.arch }}-ipk
-          path: bin/packages/*/action/*.ipk
+          name: immortalwrt-${{ env.IMMORTALWRT_VERSION }}-x86_64-ipk
+          path: artifacts/*.ipk
           if-no-files-found: error

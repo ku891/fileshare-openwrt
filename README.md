@@ -21,7 +21,7 @@ make package/feeds/fileshare/fileshare/compile V=s
 
 ### 安装（路由器）
 
-**ImmortalWrt 24.10 x86_64 软路由**：从 GitHub Actions 下载 `immortalwrt-24.10-x86_64-24.10.6-ipk` 产物（与 24.10.x 固件匹配）。
+**ImmortalWrt 24.10 x86_64 软路由**：从 GitHub Actions 下载 `immortalwrt-24.10.6-x86_64-ipk` 产物（使用官方 SDK 24.10.6 编译，适配 24.10.x 固件）。
 
 ```bash
 opkg install /tmp/fileshare_*.ipk /tmp/luci-app-fileshare_*.ipk
