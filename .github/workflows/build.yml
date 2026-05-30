@@ -1,0 +1,44 @@
+name: Build IPK
+
+on:
+  push:
+    branches:
+      - go-v2.0
+      - main
+  pull_request:
+    branches:
+      - go-v2.0
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x86_64
+          - aarch64_generic
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}
+          PACKAGES: fileshare luci-app-fileshare
+          NO_SHFMT_CHECK: 1
+          V: s
+
+      - name: Upload IPK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}-ipk
+          path: bin/packages/*/action/*.ipk
+          if-no-files-found: error

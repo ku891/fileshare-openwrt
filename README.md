@@ -4,6 +4,8 @@ OpenWrt / ImmortalWrt 内网共享插件。
 
 ## v2.0（Go，推荐）
 
+当前版本：**2.0.1**
+
 - **不再依赖** `node`、`node-npm`
 - 单二进制 `fileshare`（约 8–12 MB，视架构而定）
 - **兼容** 原有 Web 前端与 LuCI（API 路径不变）
